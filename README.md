@@ -2,7 +2,7 @@
 
 Welcome to the **XAI-Internship** repository. This project **explores explainable artificial intelligence** (XAI) in the context of **speech enhancement**, applying interpretability techniques to deep models like DCCRN to better understand how they process and denoise audio signals.
 
-## 📁 Repository Structure
+## Repository Structure
 
 ### `enhancement/`
 This directory includes:
