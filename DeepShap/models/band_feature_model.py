@@ -21,13 +21,14 @@ def extract_band_features(x):
     band_feats = []
     for low, high in bands:
         mask = (freqs >= low) & (freqs < high)
-        band_energy = mag[:, mask, :].mean(dim=(1, 2))  # [B], moyenne sur freq ET temps
+        band_energy = mag[:, mask, :].mean(dim=(1, 2))  # [B], mean over freq and time
         band_feats.append(band_energy)
     return torch.stack(band_feats, dim=1)  # [B, nb_bands]
 
 class BandFeatureModel(nn.Module):
     """
-    A wrapper for the model to extract band features, in order to use it with Captum."""
+    A wrapper for the model to extract band features, in order to use it with Captum.
+    """
     def __init__(self, model):
         super().__init__()
         self.model = model
