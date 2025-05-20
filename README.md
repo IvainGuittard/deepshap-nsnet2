@@ -2,18 +2,6 @@
 
 Welcome to the **XAI-Internship** repository. This project **explores explainable artificial intelligence** (XAI) in the context of **speech enhancement**, applying interpretability techniques to deep models like DCCRN to better understand how they process and denoise audio signals.
 
-## Repository Structure
-
-### `enhancement/`
-This directory includes:
-- **DCCRN Model Implementation**: Core architecture for speech enhancement tasks.
-- **Training and Evaluation Scripts**: Tools to train and assess the model's performance.
-- **Data Handling Utilities**: Functions to load, preprocess, and manage audio datasets.
-
-### `papers/`
-This directory contains:
-- **Reference Papers**: A collection of research articles that inspire the techniques used in this project, including XAI methods and speech enhancement strategies.
-
 ## Project Goal
 
 - Explore and compare explainability (XAI) and sensitivity analysis methods for a deep speech enhancement model (DCCRN).
@@ -25,6 +13,35 @@ This directory contains:
 - Investigate how feature definitions (individual bins, grouped regions, or latent features) affect interpretability.
 
 - Provide visual and quantitative insights into which parts of the input the model relies on during noise suppression.
+
+
+## Repository Structure
+
+### `DeepShap/` 
+
+We use [Captum's DeepLiftShap](https://captum.ai/api/deep_lift_shap.html) to compute **feature attributions** over frequency bands for a speech model (DCCRNet). The procedure works as follows:
+
+1. **Wrap the model** with a custom class (`BandFeatureModel`) that extracts band-level magnitude features from the output.
+2. **Provide a baseline** (zero signal) and compute attributions for each frequency band target.
+3. **Average the attributions over time** and save the results in a JSON file per input audio file.
+
+### 🔍 Example Output Format
+
+```json
+{
+  "input_file": "00001_p226_001.wav",
+  "attributions": {
+    "0-1000Hz": 3.68e-06,
+    "1000-2000Hz": 6.42e-07,
+    ...
+  }
+}
+```
+
+
+### `papers/`
+This directory contains:
+- **Reference Papers**: A collection of research articles that inspire the techniques used in this project, including XAI methods and speech enhancement strategies.
 
 ## Dataset
 
