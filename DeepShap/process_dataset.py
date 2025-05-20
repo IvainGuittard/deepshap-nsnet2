@@ -12,7 +12,7 @@ from config.bands import bands, sample_rate
 """
 process_dataset.py loads noisy inputs"""
 # Directory containing the noisy input files
-data_dir = "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/data/noisy_trainset_28spk_wav"
+data_dir = "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/data/clean_trainset_28spk_wav"
 
 # Load the model and the DeepLIFTShap wrapper
 model = DCCRNet.from_pretrained("JorisCos/DCCRNet_Libri1Mix_enhsingle_16k")
