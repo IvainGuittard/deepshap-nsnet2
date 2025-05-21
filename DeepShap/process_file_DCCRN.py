@@ -1,3 +1,7 @@
+"""
+main.py loads a noisy input, computes the DeepLIFTShap attributions for each frequency band. It saves the attribution map to a JSON file and plots the attributions.
+"""
+
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,11 +14,7 @@ import torch.nn as nn
 
 from utils.data_utils import load_and_resample, batchify_targets, save_attributions_to_json
 from models.band_feature_model import BandFeatureModel
-from config.bands import bands, n_fft, freqs, sample_rate
-
-"""
-main.py loads a noisy input, computes the DeepLIFTShap attributions for each frequency band. It saves the attribution map to a JSON file and plots the attributions.
-"""
+from DeepShap.config.parameters import bands, n_fft, freqs, sample_rate
 
 # Load the model and the DeepLIFTShap wrapper
 model = DCCRNet.from_pretrained("JorisCos/DCCRNet_Libri1Mix_enhsingle_16k")
