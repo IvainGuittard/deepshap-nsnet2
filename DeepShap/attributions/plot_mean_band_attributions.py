@@ -3,25 +3,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Load the JSON file
-json_path = "DeepShap/attributions/deepshap_attributions_noisy.json"
-normalization = True
+json_path = "DeepShap/attributions/deepshap_attributions_noisy_NsNet2.json"
+normalization = False
 if normalization:
-    save_path = "DeepShap/attributions/deepshap_mean_attributions_noisy.png"
-else:
     save_path = "DeepShap/attributions/deepshap_mean_attributions_noisy_normalized.png"
+else:
+    save_path = "DeepShap/attributions/deepshap_mean_attributions_noisy_NsNet2.png"
 with open(json_path, "r") as f:
     data = json.load(f)
 
 # Frequency bands
 freq_bands = ["0-1000Hz", "1000-2000Hz", "2000-3000Hz", "3000-4000Hz",
               "4000-5000Hz", "5000-6000Hz", "6000-7000Hz", "7000-8000Hz"]
-
-if data:
-    freq_bands = list(data[0]["attributions"].keys())
-else:
-    raise ValueError("The JSON file is empty or improperly formatted.")
-
-
 nb_bands = len(freq_bands)
 
 # Collect all attributions per band
