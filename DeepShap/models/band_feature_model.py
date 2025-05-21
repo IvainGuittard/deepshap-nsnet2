@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from config.bands import bands, n_fft, freqs
+from DeepShap.config.parameters import bands, n_fft, freqs
 
 def extract_band_features(x):
     """

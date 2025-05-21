@@ -27,7 +27,7 @@ def save_attributions_to_json(attr_map, bands, noisy_path, save_path = save_path
     """
     filename = os.path.basename(noisy_path)
 
-    # Charger les données existantes
+    # Check if the file has already been processed
     if os.path.exists(save_path):
         with open(save_path, "r") as f:
             try:
@@ -37,7 +37,6 @@ def save_attributions_to_json(attr_map, bands, noisy_path, save_path = save_path
     else:
         data = []
 
-    # Déterminer le prochain index
     next_index = len(data) + 1
     numbered_filename = f"{next_index:05d}_{filename}"
 
