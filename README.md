@@ -4,7 +4,7 @@ Welcome to the **XAI-Internship** repository. This project **explores explainabl
 
 ## Project Goal
 
-- Explore and compare explainability (XAI) and sensitivity analysis methods for a deep speech enhancement model (DCCRN).
+- Explore and compare explainability (XAI) and sensitivity analysis methods for a deep speech enhancement model (NsNet2).
 
 - Apply model-agnostic (e.g., SHAP, LIME) and gradient-based techniques (e.g., FGSM, Deep SHAP, Gradient SHAP) to understand model behavior.
 
@@ -48,3 +48,23 @@ This directory contains:
 The primary dataset used is the [Noisy speech database for training speech enhancement algorithms and TTS models](https://datashare.ed.ac.uk/handle/10283/2791) hosted by the University of Edinburgh.
 It provides clean and noisy parallel speech at 48kHz, based on the VCTK corpus with noise from the DEMAND database.
 
+
+## Requirements
+
+- Python 3.8 or later
+- [PyTorch](https://pytorch.org/) (version compatible with your environment)
+- Other dependencies listed in `requirements.txt`
+
+### Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+## Running the main script
+
+The script `DeepShap/main.py` computes Shapley values for frequency-times bins of audio files for NsNet2 model. To run it with your own data:
+
+```bash
+python DeepShap/main.py --input_dir data/noisy_trainset_28spk_wav_resampled --divisions 16 32 64
+```
