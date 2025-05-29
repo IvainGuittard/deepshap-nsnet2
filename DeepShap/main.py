@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import torch
-from utils.data_utils import load_and_resample, save_attr_map
+from utils.data_utils import load_and_resample, save_attr_map, is_already_processed
 from config.parameters import sample_rate, freq_bands, hop_length
 from utils.plot_utils import plot_spectrogram_and_attributions
 from utils.model_utils import load_nsnet2_model
@@ -64,6 +64,9 @@ def main():
     ]
     for input_path in wav_files:
         for division in args.divisions:
+            if is_already_processed(input_path, division):
+                print(f"Skipping {input_path} division {division}, already processed.")
+                continue
             print(f"Processing {input_path} with division {division}")
             process_file(input_path, division)
             print(f"Done {input_path} division {division}")
