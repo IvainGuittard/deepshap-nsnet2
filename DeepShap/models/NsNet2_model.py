@@ -3,24 +3,28 @@ from torch import nn
 
 
 class NsNet2(nn.Module):
-    def __init__(self, n_fft, n_features, hidden_1, hidden_2, hidden_3):
+    def __init__(self, n_fft, n_feat, hd1, hd2, hd3):
         super().__init__()
         self.n_fft = n_fft
-        self.n_features = n_features
-        self.hidden_1 = hidden_1
-        self.hidden_2 = hidden_2
-        self.hidden_3 = hidden_3
+        self.n_features = n_feat
+        self.hidden_1 = hd1
+        self.hidden_2 = hd2
+        self.hidden_3 = hd3
         # fc1
-        self.fc1 = nn.Linear(n_features, hidden_1)
+        self.fc1 = nn.Linear(n_feat, hd1)
         # rnn
-        self.rnn1 = nn.GRU(input_size=hidden_1, hidden_size=hidden_2, num_layers=1, batch_first=True)
-        self.rnn2 = nn.GRU(input_size=hidden_2, hidden_size=hidden_2, num_layers=1, batch_first=True)
+        self.rnn1 = nn.GRU(
+            input_size=hd1, hidden_size=hd2, num_layers=1, batch_first=True
+        )
+        self.rnn2 = nn.GRU(
+            input_size=hd2, hidden_size=hd2, num_layers=1, batch_first=True
+        )
         # fc2
-        self.fc2 = nn.Linear(hidden_2, hidden_3)
+        self.fc2 = nn.Linear(hd2, hd3)
         # fc3
-        self.fc3 = nn.Linear(hidden_3, hidden_3)
+        self.fc3 = nn.Linear(hd3, hd3)
         # fc4
-        self.fc4 = nn.Linear(hidden_3, n_features)
+        self.fc4 = nn.Linear(hd3, n_feat)
         # eps
         self.eps = 1e-8
         self.preproc = torchaudio.transforms.Spectrogram(
@@ -57,11 +61,6 @@ class NsNet2(nn.Module):
         # sort shape
         mask_pred = x.permute(0, 2, 1).unsqueeze(1)
         return mask_pred
- 
-model = NsNet2(
-    n_fft=512,
-    n_features=257,
-    hidden_1=400,
-    hidden_2=400,
-    hidden_3=600
-)
+
+
+model = NsNet2(n_fft=512, n_feat=257, hd1=400, hd2=400, hd3=600)
