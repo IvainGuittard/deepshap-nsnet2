@@ -17,4 +17,3 @@ def load_nsnet2_model():
     model.to(device)
     model.eval()
     return model, device
-
