@@ -66,5 +66,10 @@ pip install -r requirements.txt
 The script `DeepShap/main.py` computes Shapley values for frequency-times bins of audio files for NsNet2 model. To run it with your own data:
 
 ```bash
-python DeepShap/main.py --input_dir data/noisy_trainset_28spk_wav_resampled --divisions 16 32 64
+python DeepShap/main.py --input_dir data/noisy_input_tests --divisions 16 32 64 --baseline_type zero --noise_type not_added
 ```
+### Parameters:
+- `--input_dir`: Directory containing input audio files.
+- `--divisions`: List of frequency divisions (e.g., 16, 32, 64).
+- `--baseline_type`: Type of baseline to use (e.g., `zero` for zero signal).
+- `--noise_type`: Type of noise to consider (e.g., `not_added` for no added noise).

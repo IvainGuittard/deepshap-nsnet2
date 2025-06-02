@@ -4,16 +4,23 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from tqdm import tqdm
-from joblib import Parallel, delayed
 
 from captum.attr import DeepLiftShap
 from utils.data_utils import load_and_resample, batchify_targets
 from models.frequency_time_feature_model import BandFeatureFrequencyTimeModel
-from config.parameters import freq_bands, sample_rate, freqs
+from config.parameters import sample_rate, freqs
+from scipy.interpolate import interp1d
 
 
 def compute_frequency_time_bands_attributions(
-    noisy_input, model, device, baseline, batch_size=16, division=1, time_bands=None
+    noisy_input,
+    model,
+    device,
+    baseline,
+    batch_size=16,
+    division=1,
+    freq_bands=None,
+    time_bands=None,
 ):
     wrapped_model = BandFeatureFrequencyTimeModel(model)
     deep_shap = DeepLiftShap(wrapped_model)
@@ -24,7 +31,6 @@ def compute_frequency_time_bands_attributions(
     noisy_deepshap_input = noisy_input.to(device).unsqueeze(0).requires_grad_(True)
     progress_bar = tqdm(total=len(all_targets), desc="Computing attributions")
     for batch in batchify_targets(all_targets, batch_size=batch_size):
-        print(f"Computing attribution for batch {batch}...")
         input_batch = noisy_deepshap_input.to(device).repeat(len(batch), 1, 1)
         model.train()
         attrs = deep_shap.attribute(
@@ -45,62 +51,36 @@ def compute_frequency_time_bands_attributions(
     return attr_map
 
 
-def process_frequency_time_pair(i, f, seconds, freq_bands, time_bands_sec, attr_map):
-    converted_row = np.zeros(len(seconds))
-    # Trouver l'indice de la bande de fréquence
-    freq_band_idx = next(
-        (idx for idx, (f_low, f_high) in enumerate(freq_bands) if f_low <= f < f_high),
-        (
-            0
-            if f < freq_bands[0][0]
-            else len(freq_bands) - 1 if f >= freq_bands[-1][1] else None
-        ),
-    )
-    if freq_band_idx is None:
-        raise ValueError(
-            f"Frequency {f} Hz does not fall within any defined frequency band."
-        )
+def convert_attr_map_to_mel_scale(
+    input_path, attr_map, time_bands_sec, freq_bands, n_mels=62
+):
+    print(f"Converting attribution map to Mel scale for {input_path}...")
 
-    for j, second in enumerate(seconds):
-        # Trouver l'indice de la bande de temps
-        time_band_idx = next(
-            (
-                idx
-                for idx, (start, end) in enumerate(time_bands_sec)
-                if start <= second < end
-            ),
-            0 if second < time_bands_sec[0][0] else None,
-        )
-        if time_band_idx is None:
-            continue
-        # Stocker la valeur d'attribution
-        converted_row[j] = attr_map[freq_band_idx, time_band_idx]
-    return i, converted_row
-
-
-def convert_attr_map_to_freq_time(input_path, attr_map, time_bands_sec):
-    """
-    Convert the attribution map to a 2D array with frequency bands on the y-axis and time bands on the x-axis.
-
-    Parameters:
-    - attr_map: 2D numpy array of shape (num_freq_bands, num_time_bands)
-    - freq_bands: List of tuples representing frequency bands
-    - time_bands: List of tuples representing time bands
-
-    Returns:
-    - 2D array of shape (len(freqs), len(frames))
-    """
-    print(f"Converting attribution map to frequency-time format for {input_path}...")
     file, _ = load_and_resample(input_path, sample_rate)
     frames = np.arange(file.shape[-1])
     seconds = frames / sample_rate
-    converted_map = np.zeros((len(freqs), len(seconds)))
-    results = Parallel(n_jobs=-1)(
-        delayed(process_frequency_time_pair)(
-            i, f, seconds, freq_bands, time_bands_sec, attr_map
-        )
-        for i, f in tqdm(list(enumerate(freqs)))
+
+    # Create a linear map from frequency bands to time bands
+    freq_band_idx_for_f = np.zeros(len(freqs), dtype=int)
+    for idx, (f_low, f_high) in enumerate(freq_bands):
+        mask = (freqs >= f_low) & (freqs < f_high)
+        freq_band_idx_for_f[mask] = idx
+    time_band_idx_for_sec = np.zeros(len(seconds), dtype=int)
+    for idx, (start, end) in enumerate(time_bands_sec):
+        mask = (seconds >= start) & (seconds < end)
+        time_band_idx_for_sec[mask] = idx
+    linear_map = attr_map[freq_band_idx_for_f[:, None], time_band_idx_for_sec[None, :]]
+
+    # Mel frequency interpolation
+    mel_min = 0
+    mel_max = 2595 * np.log10(1 + (sample_rate // 2) / 700)
+    mel_points = np.linspace(mel_min, mel_max, n_mels + 2)
+    hz_points = 700 * (10 ** (mel_points / 2595) - 1)
+    mel_freqs = hz_points[1:-1]
+
+    interp_func = interp1d(
+        freqs, linear_map, kind="linear", axis=0, fill_value="extrapolate"
     )
-    for i, converted_row in results:
-        converted_map[i, :] = converted_row
-    return converted_map
+    mel_attr_map = interp_func(mel_freqs)
+
+    return mel_attr_map, mel_freqs
