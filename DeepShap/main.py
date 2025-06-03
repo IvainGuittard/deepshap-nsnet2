@@ -161,8 +161,9 @@ def main():
                     None,
                     None,
                 )
+    print("DeepLIFTShap attributions computed and saved successfully : noise type: "
+          f"{args.noise_type}, baseline type: {args.baseline_type}")
 
 
 if __name__ == "__main__":
     main()
-    print("DeepLIFTShap attributions computed and saved successfully.")
