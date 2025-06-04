@@ -1,0 +1,173 @@
+import os
+import torch
+import torchaudio
+import torch.nn as nn
+from captum.attr import DeepLiftShap
+import matplotlib.pyplot as plt
+from utils.model_utils import load_nsnet2_model
+from tqdm import tqdm
+import numpy as np
+
+
+# ─── A) Load NSNet2 ────────────────
+# and that you have already defined `MaskFromLogPower` from the previous steps.
+model, device = load_nsnet2_model()
+# Wrap the log‐power → mask logic in Captum:
+
+class MaskFromLogPower(nn.Module):
+    """
+    A small wrapper that reuses NsNet2’s internal layers but
+    *skips* the torchaudio STFT and log‐power steps. Instead,
+    it expects `log_power` as input and returns `mask_pred`.
+    """
+
+    def __init__(self, base_model: nn.Module):
+        super().__init__()
+        self.base = base_model
+
+    def forward(self, log_power: torch.Tensor):
+        """
+        Input:
+          log_power: real‐valued Tensor of shape [B, F, T]
+                     (this is exactly what model._forward expects 
+                      after you've done `log_stft_noisy = torch.log(|STFT|^2 + eps)`)
+        Output:
+          mask_pred: shape [B, 1, F, T], with values in [0,1].
+        """
+        B, F, T = log_power.shape
+        # 1) Reconstruct the “RNN input” format [B, T, F]:
+        x = log_power.permute(0, 2, 1)  # → [B, T, F]
+
+        # 2) Pass through fc1 → rnn1 → rnn2 → fc2→ReLU→fc3→ReLU→fc4→Sigmoid
+        #    We must create zero initial states for both GRUs:
+        device = log_power.device
+        h1_0 = torch.zeros(1, B, self.base.hidden_2, device=device)
+        h2_0 = torch.zeros(1, B, self.base.hidden_2, device=device)
+
+        x = self.base.fc1(x)              # → [B, T, hd1]
+        x, h1 = self.base.rnn1(x, h1_0)   # → [B, T, hd2]
+        x, h2 = self.base.rnn2(x, h2_0)   # → [B, T, hd2]
+        x = self.base.fc2(x)              # → [B, T, hd3]
+        x = nn.functional.relu(x)
+        x = self.base.fc3(x)              # → [B, T, hd3]
+        x = nn.functional.relu(x)
+        x = self.base.fc4(x)              # → [B, T, n_feat]
+        x = torch.sigmoid(x)              # mask values in [0,1]
+
+        # 3) Now reshape back to [B, 1, F, T]:
+        #    Right now `x` is [B, T, F], so permute back:
+        mask_pred = x.permute(0, 2, 1).unsqueeze(1)  # → [B, 1, F, T]
+        return mask_pred
+    
+wrapper = MaskFromLogPower(model).cuda().train()
+dl_shap = DeepLiftShap(wrapper)
+
+# ─── B) Prepare one test log‐power spectrogram + a set of baselines ───────
+# 1 second of noisy waveform (e.g. 16 kHz) → compute STFT → log‐power:
+x_test_path = "/home/claroche/XAI-Internship/data/clean_testset_wav/p232_001.wav"
+x_test, sample_rate = torchaudio.load(x_test_path)
+if sample_rate != 16000:
+    resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+    x_test = resampler(x_test).to("cuda")  # Resample to 16 kHz
+    sample_rate = 16000
+# x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
+spec_complex = model.preproc(x_test)                  # [1, 1, 257, ~62], complex
+log_power_test = torch.log(spec_complex.abs()**2 + model.eps).squeeze(1)
+# → log_power_test: [1, 257, T_frames]
+
+# Build a “silent‐baseline” set (here 50 copies of log(eps)):
+B_baseline = 50
+F_bins, T_frames = log_power_test.shape[1], log_power_test.shape[2]
+baseline_logpower = torch.log(
+    torch.full((B_baseline, F_bins, T_frames),
+               fill_value=model.eps, device="cuda")
+)  # → shape [50, 257, T_frames]
+
+# Make a directory to save all attribution maps
+os.makedirs("tf_attributions", exist_ok=True)
+
+# ─── C) Loop over every TF‐bin and save its attribution map ─────────────
+all_attr = np.zeros((F_bins, T_frames, F_bins, T_frames))
+
+
+
+for f0 in tqdm(range(F_bins)):
+    for t0 in range(T_frames):
+        # Specify the single‐pixel target: (channel_index, freq_index, time_index).
+        # Here channel_index is always 0 (because wrapper output is [B,1,F,T]).
+        target = (0, f0, t0)
+
+        # Compute attribution map for mask[b,0,f0,t0]
+        attributions = dl_shap.attribute(
+            inputs=log_power_test,       # [1, 257, T_frames]
+            baselines=baseline_logpower, # [50, 257, T_frames]
+            target=target                # which mask‐pixel to explain
+        )
+        # attributions: [1, 257, T_frames]
+        attr_map = attributions[0].detach().cpu().numpy()
+        all_attr[f0, t0] = attributions[0].detach().cpu().numpy()  # store [F, T] map for this (f0,t0)
+
+        # Plot & save the 2D heatmap
+        plt.figure(figsize=(4, 3))
+        plt.imshow(attr_map, origin="lower", aspect="auto", cmap="seismic")
+        plt.title(f"Attribution for mask[0,0,{f0},{t0}]")
+        plt.xlabel("Time frame t")
+        plt.ylabel("Freq bin f")
+        plt.colorbar(fraction=0.046, pad=0.04)
+
+        filename = f"tf_attributions/attr_f{f0}_t{t0}.png"
+        plt.savefig(filename, bbox_inches="tight")
+        plt.close()
+
+        # (Optional) Print progress every 1000 maps
+        if (f0 * T_frames + t0) % 1000 == 0:
+            print(f"Generated attribution map for (f={f0}, t={t0}) → {filename}")
+
+
+print("Done! All TF‐bin attribution maps are in the folder: tf_attributions/")
+
+
+# ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────
+# A_in2mask[f_in, t_in] = Σ_{f0, t0} |all_attr[f0, t0, f_in, t_in]|
+A_in2mask = all_attr.abs().sum(dim=(0, 1))  # → [F, T]
+# Min–max normalize entire map so it’s in [0,1]
+A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (A_in2mask.max() - A_in2mask.min() + 1e-12)
+
+plt.figure(figsize=(5, 4))
+plt.title("Global influence of each input TF‐bin on the entire mask (min–max norm)")
+plt.imshow(A_in2mask_norm.cpu().numpy(), origin="lower", aspect="auto", cmap="magma")
+plt.xlabel("input time t_in")
+plt.ylabel("input freq f_in")
+plt.colorbar(label="normalized attribution")
+plt.tight_layout()
+plt.show()
+
+# ─── E) Collapse along (f0, f_in) but keep distinction for output-time (t0) ──
+# A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
+A_time = all_attr.abs().sum(dim=0).sum(dim=1)  # → [T, T]
+# Normalize each row so sum over t_in = 1
+A_time_norm = A_time / (A_time.sum(dim=1, keepdim=True) + 1e-12)
+
+plt.figure(figsize=(5, 4))
+plt.title("Normalized: How output‐time t0 depends on input‐time t_in")
+plt.imshow(A_time_norm.cpu().numpy(), origin="lower", aspect="auto", cmap="viridis")
+plt.xlabel("input time t_in")
+plt.ylabel("output time t0")
+plt.colorbar(label="row‐normalized attribution")
+plt.tight_layout()
+plt.show()
+
+# ─── F) (Optional) Collapse along (t0, t_in) for output-frequency patterns: ──
+# A_freq[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]|
+A_freq = all_attr.abs().sum(dim=1).sum(dim=3)  # → [F, F]
+# Normalize each row so sum over f_in = 1
+A_freq_norm = A_freq / (A_freq.sum(dim=1, keepdim=True) + 1e-12)
+
+plt.figure(figsize=(5, 4))
+plt.title("Normalized: How output‐freq f0 depends on input‐freq f_in")
+plt.imshow(A_freq_norm.cpu().numpy(), origin="lower", aspect="auto", cmap="plasma")
+plt.xlabel("input freq f_in")
+plt.ylabel("output freq f0")
+plt.colorbar(label="row‐normalized attribution")
+plt.tight_layout()
+plt.show()
