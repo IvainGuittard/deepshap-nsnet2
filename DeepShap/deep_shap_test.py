@@ -1,88 +1,34 @@
 import os
+import sys
 import torch
 import torchaudio
 import torch.nn as nn
 from captum.attr import DeepLiftShap
 import matplotlib.pyplot as plt
 from utils.model_utils import load_nsnet2_model
+from utils.data_utils import load_and_resample, prepare_logpower_deepshap_input_and_baseline
 from tqdm import tqdm
 import numpy as np
-
+from models.MaskFromLogPower import MaskFromLogPower
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ─── A) Load NSNet2 ────────────────
 # and that you have already defined `MaskFromLogPower` from the previous steps.
 model, device = load_nsnet2_model()
 # Wrap the log‐power → mask logic in Captum:
 
-class MaskFromLogPower(nn.Module):
-    """
-    A small wrapper that reuses NsNet2’s internal layers but
-    *skips* the torchaudio STFT and log‐power steps. Instead,
-    it expects `log_power` as input and returns `mask_pred`.
-    """
-
-    def __init__(self, base_model: nn.Module):
-        super().__init__()
-        self.base = base_model
-
-    def forward(self, log_power: torch.Tensor):
-        """
-        Input:
-          log_power: real‐valued Tensor of shape [B, F, T]
-                     (this is exactly what model._forward expects 
-                      after you've done `log_stft_noisy = torch.log(|STFT|^2 + eps)`)
-        Output:
-          mask_pred: shape [B, 1, F, T], with values in [0,1].
-        """
-        B, F, T = log_power.shape
-        # 1) Reconstruct the “RNN input” format [B, T, F]:
-        x = log_power.permute(0, 2, 1)  # → [B, T, F]
-
-        # 2) Pass through fc1 → rnn1 → rnn2 → fc2→ReLU→fc3→ReLU→fc4→Sigmoid
-        #    We must create zero initial states for both GRUs:
-        device = log_power.device
-        h1_0 = torch.zeros(1, B, self.base.hidden_2, device=device)
-        h2_0 = torch.zeros(1, B, self.base.hidden_2, device=device)
-
-        x = self.base.fc1(x)              # → [B, T, hd1]
-        x, h1 = self.base.rnn1(x, h1_0)   # → [B, T, hd2]
-        x, h2 = self.base.rnn2(x, h2_0)   # → [B, T, hd2]
-        x = self.base.fc2(x)              # → [B, T, hd3]
-        x = nn.functional.relu(x)
-        x = self.base.fc3(x)              # → [B, T, hd3]
-        x = nn.functional.relu(x)
-        x = self.base.fc4(x)              # → [B, T, n_feat]
-        x = torch.sigmoid(x)              # mask values in [0,1]
-
-        # 3) Now reshape back to [B, 1, F, T]:
-        #    Right now `x` is [B, T, F], so permute back:
-        mask_pred = x.permute(0, 2, 1).unsqueeze(1)  # → [B, 1, F, T]
-        return mask_pred
-    
 wrapper = MaskFromLogPower(model).cuda().train()
 dl_shap = DeepLiftShap(wrapper)
 
 # ─── B) Prepare one test log‐power spectrogram + a set of baselines ───────
 # 1 second of noisy waveform (e.g. 16 kHz) → compute STFT → log‐power:
-x_test_path = "/home/claroche/XAI-Internship/data/clean_testset_wav/p232_001.wav"
-x_test, sample_rate = torchaudio.load(x_test_path)
-if sample_rate != 16000:
-    resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
-    x_test = resampler(x_test).to("cuda")  # Resample to 16 kHz
-    sample_rate = 16000
+x_test_path = "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/p226_016_freq_1-125_rms_0.1.wav"
+x_test, _ = load_and_resample(x_test_path, target_sr=16000)
+x_test = x_test.to(device)
 # x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
-spec_complex = model.preproc(x_test)                  # [1, 1, 257, ~62], complex
-log_power_test = torch.log(spec_complex.abs()**2 + model.eps).squeeze(1)
-# → log_power_test: [1, 257, T_frames]
 
-# Build a “silent‐baseline” set (here 50 copies of log(eps)):
-B_baseline = 50
-F_bins, T_frames = log_power_test.shape[1], log_power_test.shape[2]
-baseline_logpower = torch.log(
-    torch.full((B_baseline, F_bins, T_frames),
-               fill_value=model.eps, device="cuda")
-)  # → shape [50, 257, T_frames]
-
+input_logpower, baseline_logpower = prepare_logpower_deepshap_input_and_baseline(model, x_test)
+F_bins, T_frames = input_logpower.shape[-2:]
 # Make a directory to save all attribution maps
 os.makedirs("tf_attributions", exist_ok=True)
 
@@ -99,7 +45,7 @@ for f0 in tqdm(range(F_bins)):
 
         # Compute attribution map for mask[b,0,f0,t0]
         attributions = dl_shap.attribute(
-            inputs=log_power_test,       # [1, 257, T_frames]
+            inputs=input_logpower,       # [1, 257, T_frames]
             baselines=baseline_logpower, # [50, 257, T_frames]
             target=target                # which mask‐pixel to explain
         )
