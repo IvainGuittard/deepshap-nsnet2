@@ -6,6 +6,7 @@ import torch.nn as nn
 from captum.attr import DeepLiftShap
 import matplotlib.pyplot as plt
 from utils.model_utils import load_nsnet2_model
+from utils.data_utils import load_and_resample
 from tqdm import tqdm
 import numpy as np
 from models.MaskFromLogPower import MaskFromLogPower
@@ -21,12 +22,9 @@ dl_shap = DeepLiftShap(wrapper)
 
 # ─── B) Prepare one test log‐power spectrogram + a set of baselines ───────
 # 1 second of noisy waveform (e.g. 16 kHz) → compute STFT → log‐power:
-x_test_path = "/home/claroche/XAI-Internship/data/clean_testset_wav/p232_001.wav"
-x_test, sample_rate = torchaudio.load(x_test_path)
-if sample_rate != 16000:
-    resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
-    x_test = resampler(x_test).to("cuda")  # Resample to 16 kHz
-    sample_rate = 16000
+x_test_path = "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/p226_016_freq_1-125_rms_0.1.wav"
+x_test, _ = load_and_resample(x_test_path, target_sr=16000)
+x_test = x_test.to(device)
 # x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
 spec_complex = model.preproc(x_test)                  # [1, 1, 257, ~62], complex
 log_power_test = torch.log(spec_complex.abs()**2 + model.eps).squeeze(1)
