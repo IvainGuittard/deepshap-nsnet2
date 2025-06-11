@@ -41,11 +41,22 @@ if not os.path.exists(json_filename):
     with open(json_filename, "w") as json_file:
         json.dump({}, json_file)
 
-for f0 in tqdm(range(F_bins)):
+with open(json_filename, "r") as json_file:
+    all_attr_dict = json.load(json_file)
+
+progress_bar = tqdm(total=F_bins * T_frames, desc="Computing attributions")
+
+for f0 in range(F_bins):
     for t0 in range(T_frames):
         # Specify the single‐pixel target: (channel_index, freq_index, time_index).
         # Here channel_index is always 0 (because wrapper output is [B,1,F,T]).
         target = (0, f0, t0)
+
+        # Check if the attribution already exists in the dictionary
+        if f"f{f0}_t{t0}" in all_attr_dict:
+            print(f"Attribution for (f={f0}, t={t0}) already exists. Skipping computation.")
+            progress_bar.update(1)
+            continue
 
         # Compute attribution map for mask[b,0,f0,t0]
         attributions = dl_shap.attribute(
@@ -55,12 +66,9 @@ for f0 in tqdm(range(F_bins)):
         )
         # attributions: [1, 257, T_frames]
         attr_map = attributions[0].detach().cpu().numpy()
-        # store the attribution map in a dictionary
-        with open(json_filename, "r+") as json_file:
-            all_attr_dict = json.load(json_file)
-            all_attr_dict[f"f{f0}_t{t0}"] = attr_map.tolist()
-            json_file.seek(0)  # Reset file pointer to the beginning
-            json.dump(all_attr_dict, json_file)
+
+        # Store the attribution map in the dictionary
+        all_attr_dict[f"f{f0}_t{t0}"] = attr_map.tolist()
 
         # Plot & save the 2D heatmap
         plt.figure(figsize=(4, 3))
@@ -74,10 +82,9 @@ for f0 in tqdm(range(F_bins)):
         plt.savefig(filename, bbox_inches="tight")
         plt.close()
 
-        # (Optional) Print progress every 1000 maps
-        if (f0 * T_frames + t0) % 1000 == 0:
-            print(f"Generated attribution map for (f={f0}, t={t0}) → {filename}")
+        progress_bar.update(1)
 
+progress_bar.close()
 
 print("Done! All TF‐bin attribution maps are in the folder: tf_attributions/")
 
