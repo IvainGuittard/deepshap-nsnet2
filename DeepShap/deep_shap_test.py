@@ -70,6 +70,12 @@ for f0 in range(F_bins):
         # Store the attribution map in the dictionary
         all_attr_dict[f"f{f0}_t{t0}"] = attr_map.tolist()
 
+        if len(all_attr_dict) % 100 == 0:
+            with open(json_filename, "w") as json_file:
+                print(f"Saving {len(all_attr_dict)} attribution maps to {json_filename}...")
+                json.dump(all_attr_dict, json_file)
+                print("Attribution maps saved.")
+
         # Plot & save the 2D heatmap
         plt.figure(figsize=(4, 3))
         plt.imshow(attr_map, origin="lower", aspect="auto", cmap="seismic")
