@@ -205,6 +205,7 @@ def prepare_deepshap_input_and_baseline(
 
     return deepshap_input, baseline, deepshap_input_path
 
+
 def prepare_logpower_deepshap_input_and_baseline(model, input):
     """
     Prepares the log-power spectrogram and silent baseline for DeepLiftShap input.
@@ -218,15 +219,14 @@ def prepare_logpower_deepshap_input_and_baseline(model, input):
         baseline_logpower: Silent baseline tensor.
     """
     input_spec_complex = model.preproc(input)  # [1, 1, 257, ~62], complex
-    input_logpower = torch.log(input_spec_complex.abs()**2 + model.eps).squeeze(1)
+    input_logpower = torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(1)
     # → input_logpower: [1, 257, T_frames]
 
     # Build a “silent‐baseline” set (here 50 copies of log(eps)):
     B_baseline = 50
     F_bins, T_frames = input_logpower.shape[1], input_logpower.shape[2]
     baseline_logpower = torch.log(
-        torch.full((B_baseline, F_bins, T_frames),
-                   fill_value=model.eps, device="cuda")
+        torch.full((B_baseline, F_bins, T_frames), fill_value=model.eps, device="cuda")
     )  # → shape [50, 257, T_frames]
 
     return input_logpower, baseline_logpower

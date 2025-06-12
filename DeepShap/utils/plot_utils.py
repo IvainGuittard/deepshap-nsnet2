@@ -11,12 +11,12 @@ from config.parameters import sample_rate
 
 
 def save_plot(
-        file_basename,
-        division,
-        noise_type,
-        baseline_type,
-        freq_range=None,
-        rms_amplitude=None,
+    file_basename,
+    division,
+    noise_type,
+    baseline_type,
+    freq_range=None,
+    rms_amplitude=None,
 ):
     folder_name = file_basename.replace(".wav", "")
     file_name = file_basename.replace(".wav", f"_div{division}_attribution_plot.png")
@@ -33,14 +33,14 @@ def save_plot(
 
 
 def plot_spectrogram_and_attributions(
-        input_path,
-        file_basename,
-        converted_attr_map,
-        division,
-        noise_type,
-        baseline_type,
-        freq_range=None,
-        rms_amplitude=None,
+    input_path,
+    file_basename,
+    converted_attr_map,
+    division,
+    noise_type,
+    baseline_type,
+    freq_range=None,
+    rms_amplitude=None,
 ):
     """
     Plots the Mel spectrogram and the DeepLIFTShap attribution map side by side.
@@ -132,7 +132,9 @@ def plot_global_influence(h5_filename, F_bins, T_frames):
         attr_map = h5f[key][:]
         A_in2mask += np.abs(attr_map)
     # Min–max normalize entire map so it’s in [0,1]
-    A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (A_in2mask.max() - A_in2mask.min() + 1e-12)
+    A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (
+        A_in2mask.max() - A_in2mask.min() + 1e-12
+    )
 
     plt.figure(figsize=(5, 4))
     plt.title("Global influence of each input TF‐bin on the entire mask (min–max norm)")
@@ -142,7 +144,9 @@ def plot_global_influence(h5_filename, F_bins, T_frames):
     plt.colorbar(label="normalized attribution")
     plt.tight_layout()
     os.makedirs("tf_attributions_collapsed", exist_ok=True)
-    plt.savefig("tf_attributions_collapsed/in2mask_global_influence.png", bbox_inches="tight")
+    plt.savefig(
+        "tf_attributions_collapsed/in2mask_global_influence.png", bbox_inches="tight"
+    )
     plt.show()
     plt.close()
     print("Global influence plot saved.")
@@ -155,7 +159,7 @@ def plot_input_time_influence(h5_filename, T_frames):
     h5f = h5py.File(h5_filename, "r")
     A_time = np.zeros((T_frames, T_frames), dtype=np.float32)
     for key in h5f:
-        f0, t0 = map(int, [key.split('_')[0][1:], key.split('_')[1][1:]])
+        f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
         attr_map = h5f[key][:]
         A_time[t0] += np.abs(attr_map).sum(axis=0)
     A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
@@ -180,7 +184,7 @@ def plot_input_freq_influence(h5_filename, F_bins):
     h5f = h5py.File(h5_filename, "r")
     A_freq = np.zeros((F_bins, F_bins), dtype=np.float32)
     for key in h5f:
-        f0, t0 = map(int, [key.split('_')[0][1:], key.split('_')[1][1:]])
+        f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
         attr_map = h5f[key][:]
         A_freq[f0] += np.abs(attr_map).sum(axis=1)
     # Normalize each row so sum over f_in = 1
