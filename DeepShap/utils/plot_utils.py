@@ -4,18 +4,19 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import matplotlib.pyplot as plt
+import h5py
 from scipy.ndimage import zoom
 from utils.audio_features import compute_log_mel_spectrogram
 from config.parameters import sample_rate
 
 
 def save_plot(
-    file_basename,
-    division,
-    noise_type,
-    baseline_type,
-    freq_range=None,
-    rms_amplitude=None,
+        file_basename,
+        division,
+        noise_type,
+        baseline_type,
+        freq_range=None,
+        rms_amplitude=None,
 ):
     folder_name = file_basename.replace(".wav", "")
     file_name = file_basename.replace(".wav", f"_div{division}_attribution_plot.png")
@@ -32,14 +33,14 @@ def save_plot(
 
 
 def plot_spectrogram_and_attributions(
-    input_path,
-    file_basename,
-    converted_attr_map,
-    division,
-    noise_type,
-    baseline_type,
-    freq_range=None,
-    rms_amplitude=None,
+        input_path,
+        file_basename,
+        converted_attr_map,
+        division,
+        noise_type,
+        baseline_type,
+        freq_range=None,
+        rms_amplitude=None,
 ):
     """
     Plots the Mel spectrogram and the DeepLIFTShap attribution map side by side.
@@ -120,3 +121,80 @@ def plot_spectrogram_and_attributions(
         file_basename, division, noise_type, baseline_type, freq_range, rms_amplitude
     )
     plt.close(fig)
+
+
+def plot_global_influence(h5_filename, F_bins, T_frames):
+    # A_in2mask[f_in, t_in] = Σ_{f0, t0} |all_attr[f0, t0, f_in, t_in]|
+    print(f"Plotting global influence from {h5_filename}...")
+    h5f = h5py.File(h5_filename, "r")
+    A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
+    for key in h5f:
+        attr_map = h5f[key][:]
+        A_in2mask += np.abs(attr_map)
+    # Min–max normalize entire map so it’s in [0,1]
+    A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (A_in2mask.max() - A_in2mask.min() + 1e-12)
+
+    plt.figure(figsize=(5, 4))
+    plt.title("Global influence of each input TF‐bin on the entire mask (min–max norm)")
+    plt.imshow(A_in2mask_norm, origin="lower", aspect="auto", cmap="magma")
+    plt.xlabel("input time t_in")
+    plt.ylabel("input freq f_in")
+    plt.colorbar(label="normalized attribution")
+    plt.tight_layout()
+    os.makedirs("tf_attributions_collapsed", exist_ok=True)
+    plt.savefig("tf_attributions_collapsed/in2mask_global_influence.png", bbox_inches="tight")
+    plt.show()
+    plt.close()
+    print("Global influence plot saved.")
+    h5f.close()
+
+
+def plot_input_time_influence(h5_filename, T_frames):
+    # A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
+    print(f"Plotting input time influence from {h5_filename}...")
+    h5f = h5py.File(h5_filename, "r")
+    A_time = np.zeros((T_frames, T_frames), dtype=np.float32)
+    for key in h5f:
+        f0, t0 = map(int, [key.split('_')[0][1:], key.split('_')[1][1:]])
+        attr_map = h5f[key][:]
+        A_time[t0] += np.abs(attr_map).sum(axis=0)
+    A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
+
+    plt.figure(figsize=(5, 4))
+    plt.title("Normalized: How output‐time t0 depends on input‐time t_in")
+    plt.imshow(A_time_norm, origin="lower", aspect="auto", cmap="viridis")
+    plt.xlabel("input time t_in")
+    plt.ylabel("output time t0")
+    plt.colorbar(label="row‐normalized attribution")
+    plt.tight_layout()
+    plt.savefig("tf_attributions_collapsed/time_influence.png", bbox_inches="tight")
+    plt.show()
+    plt.close()
+    print("Input time influence plot saved.")
+    h5f.close()
+
+
+def plot_input_freq_influence(h5_filename, F_bins):
+    # A_freq[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]|
+    print(f"Plotting input frequency influence from {h5_filename}...")
+    h5f = h5py.File(h5_filename, "r")
+    A_freq = np.zeros((F_bins, F_bins), dtype=np.float32)
+    for key in h5f:
+        f0, t0 = map(int, [key.split('_')[0][1:], key.split('_')[1][1:]])
+        attr_map = h5f[key][:]
+        A_freq[f0] += np.abs(attr_map).sum(axis=1)
+    # Normalize each row so sum over f_in = 1
+    A_freq_norm = A_freq / (A_freq.sum(axis=1, keepdims=True) + 1e-12)
+
+    plt.figure(figsize=(5, 4))
+    plt.title("Normalized: How output‐freq f0 depends on input‐freq f_in")
+    plt.imshow(A_freq_norm, origin="lower", aspect="auto", cmap="plasma")
+    plt.xlabel("input freq f_in")
+    plt.ylabel("output freq f0")
+    plt.colorbar(label="row‐normalized attribution")
+    plt.tight_layout()
+    plt.savefig("tf_attributions_collapsed/freq_influence.png", bbox_inches="tight")
+    plt.show()
+    plt.close()
+    print("Input frequency influence plot saved.")
+    h5f.close()
