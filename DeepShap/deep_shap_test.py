@@ -76,69 +76,13 @@ print("Done! All TF‐bin attribution maps are in the folder: tf_attributions/")
 
 
 # ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────
-# A_in2mask[f_in, t_in] = Σ_{f0, t0} |all_attr[f0, t0, f_in, t_in]|
-A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
-with open(json_filename, "r") as json_file:
-    all_attr_dict = json.load(json_file)
-for key, attr_map in all_attr_dict.items():
-    attr_map = np.array(attr_map)
-    A_in2mask += np.abs(attr_map)
-# Min–max normalize entire map so it’s in [0,1]
-A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (A_in2mask.max() - A_in2mask.min() + 1e-12)
 
-plt.figure(figsize=(5, 4))
-plt.title("Global influence of each input TF‐bin on the entire mask (min–max norm)")
-plt.imshow(A_in2mask_norm, origin="lower", aspect="auto", cmap="magma")
-plt.xlabel("input time t_in")
-plt.ylabel("input freq f_in")
-plt.colorbar(label="normalized attribution")
-plt.tight_layout()
-plt.savefig("tf_attributions_collapsed/in2mask_global_influence.png", bbox_inches="tight")
-plt.show()
-plt.close()
+plot_global_influence(h5_filename, F_bins, T_frames)
 
-# ─── E) Collapse along (f0, f_in) but keep distinction for output-time (t0) ──
-# A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
-A_time = np.zeros((T_frames, T_frames), dtype=np.float32)
-with open(json_filename, "r") as json_file:
-    all_attr_dict = json.load(json_file)
-for key, attr_map in all_attr_dict.items():
-    f0, t0 = map(int, [key.split('_')[0][1:], key.split('_')[1][1:]])
-    attr_map = np.array(attr_map)  # Convert to numpy array
-    A_time[t0] += np.abs(attr_map).sum(axis=0) # → [T_frames, T_frames]
-# Normalize each row so sum over t_in = 1
-A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
+# ─── E) Influence of input-time on each output-time ─────
 
-plt.figure(figsize=(5, 4))
-plt.title("Normalized: How output‐time t0 depends on input‐time t_in")
-plt.imshow(A_time_norm, origin="lower", aspect="auto", cmap="viridis")
-plt.xlabel("input time t_in")
-plt.ylabel("output time t0")
-plt.colorbar(label="row‐normalized attribution")
-plt.tight_layout()
-plt.savefig("tf_attributions_collapsed/time_influence.png", bbox_inches="tight")
-plt.show()
-plt.close()
+plot_input_time_influence(h5_filename, T_frames)
 
-# ─── F) (Optional) Collapse along (t0, t_in) for output-frequency patterns: ──
-# A_freq[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]|
-A_freq = np.zeros((F_bins, F_bins), dtype=np.float32)
-with open(json_filename, "r") as json_file:
-    all_attr_dict = json.load(json_file)
-for key, attr_map in all_attr_dict.items():
-    f0, t0 = map(int, [key.split('_')[0][1:], key.split('_')[1][1:]])
-    attr_map = np.array(attr_map)
-    A_freq[f0] += np.abs(attr_map).sum(axis=1)
-# Normalize each row so sum over f_in = 1
-A_freq_norm = A_freq / (A_freq.sum(axis=1, keepdims=True) + 1e-12)
+# ─── F) Influence of input-frequency on output-frequency ─────
 
-plt.figure(figsize=(5, 4))
-plt.title("Normalized: How output‐freq f0 depends on input‐freq f_in")
-plt.imshow(A_freq_norm, origin="lower", aspect="auto", cmap="plasma")
-plt.xlabel("input freq f_in")
-plt.ylabel("output freq f0")
-plt.colorbar(label="row‐normalized attribution")
-plt.tight_layout()
-plt.savefig("tf_attributions_collapsed/freq_influence.png", bbox_inches="tight")
-plt.show()
-plt.close()
+plot_input_freq_influence(h5_filename, F_bins)
