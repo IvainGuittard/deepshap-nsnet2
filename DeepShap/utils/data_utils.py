@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torchaudio
 import torch
 import json
+import h5py
 
 
 def batchify_targets(targets, batch_size):
@@ -229,3 +230,9 @@ def prepare_logpower_deepshap_input_and_baseline(model, input):
     )  # → shape [50, 257, T_frames]
 
     return input_logpower, baseline_logpower
+
+
+def create_h5_file_and_keys(h5_filename):
+    h5f = h5py.File(h5_filename, "a")
+    existing_keys = set(h5f.keys())
+    return h5f, existing_keys
