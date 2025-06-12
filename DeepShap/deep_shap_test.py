@@ -3,10 +3,19 @@ import sys
 from captum.attr import DeepLiftShap
 import matplotlib.pyplot as plt
 from utils.model_utils import load_nsnet2_model
-from utils.data_utils import load_and_resample, prepare_logpower_deepshap_input_and_baseline, create_h5_file_and_keys
-from utils.plot_utils import plot_global_influence, plot_input_time_influence, plot_input_freq_influence
+from utils.data_utils import (
+    load_and_resample,
+    prepare_logpower_deepshap_input_and_baseline,
+    create_h5_file_and_keys,
+)
+from utils.plot_utils import (
+    plot_global_influence,
+    plot_input_time_influence,
+    plot_input_freq_influence,
+)
 from tqdm import tqdm
 from models.MaskFromLogPower import MaskFromLogPower
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ─── A) Load NSNet2 ────────────────
@@ -24,14 +33,18 @@ x_test, _ = load_and_resample(x_test_path, target_sr=16000)
 x_test = x_test.to(device)
 # x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
 
-input_logpower, baseline_logpower = prepare_logpower_deepshap_input_and_baseline(model, x_test)
+input_logpower, baseline_logpower = prepare_logpower_deepshap_input_and_baseline(
+    model, x_test
+)
 F_bins, T_frames = input_logpower.shape[-2:]
 # Make a directory to save all attribution maps
 os.makedirs("tf_attributions", exist_ok=True)
 
 # ─── C) Loop over every TF‐bin and save its attribution map ─────────────
 
-h5_filename = f"tf_attributions/{os.path.basename(x_test_path).split('.')[0]}_attributions.h5"
+h5_filename = (
+    f"tf_attributions/{os.path.basename(x_test_path).split('.')[0]}_attributions.h5"
+)
 h5f, existing_keys = create_h5_file_and_keys(h5_filename)
 
 progress_bar = tqdm(total=F_bins * T_frames, desc="Computing attributions")
@@ -43,15 +56,17 @@ for f0 in range(F_bins):
         target = (0, f0, t0)
         key = f"f{f0}_t{t0}"
         if key in existing_keys:
-            print(f"Attribution for (f={f0}, t={t0}) already exists. Skipping computation.")
+            print(
+                f"Attribution for (f={f0}, t={t0}) already exists. Skipping computation."
+            )
             progress_bar.update(1)
             continue
 
         # Compute attribution map for mask[b,0,f0,t0]
         attributions = dl_shap.attribute(
-            inputs=input_logpower,       # [1, 257, T_frames]
-            baselines=baseline_logpower, # [50, 257, T_frames]
-            target=target                # which mask‐pixel to explain
+            inputs=input_logpower,  # [1, 257, T_frames]
+            baselines=baseline_logpower,  # [50, 257, T_frames]
+            target=target,  # which mask‐pixel to explain
         )
         # attributions: [1, 257, T_frames]
         attr_map = attributions[0].detach().cpu().numpy()

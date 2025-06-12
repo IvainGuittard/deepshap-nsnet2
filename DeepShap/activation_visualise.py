@@ -25,22 +25,24 @@ GIF_DIR = "path/to/save/gifs"
 torch.manual_seed(42)
 
 # Noise parameters
-NUM_LEVELS     = 50
-BURST_PROB     = 0.0005    # 0.05% chance to start a burst at any sample index
-BURST_LENGTH   = 400       # each burst spans 400 consecutive time steps
-NOISE_STD      = 1.0       # standard deviation for pre‐generated white noise
-USE_BURST_NOISE = True     # toggle burst‐noise behavior
+NUM_LEVELS = 50
+BURST_PROB = 0.0005  # 0.05% chance to start a burst at any sample index
+BURST_LENGTH = 400  # each burst spans 400 consecutive time steps
+NOISE_STD = 1.0  # standard deviation for pre‐generated white noise
+USE_BURST_NOISE = True  # toggle burst‐noise behavior
 
 
 # ───────────────────────────────────────────────────────────────────────────────
 # Helper Classes and Functions
 # ───────────────────────────────────────────────────────────────────────────────
 
+
 class MaskFromLogPower(nn.Module):
     """
     Wraps the NSNet2 model so that it directly accepts a log‐power spectrogram
     (shape [B, F, T]) and returns the predicted mask (shape [B, 1, F, T]).
     """
+
     def __init__(self, base_model: nn.Module):
         super().__init__()
         self.base = base_model
@@ -65,15 +67,15 @@ class MaskFromLogPower(nn.Module):
         h2_0 = torch.zeros(1, B, self.base.hidden_2, device=device)
 
         # 3) Forward pass through NSNet2’s layers (fc1, rnn1, rnn2, fc2 → ReLU, fc3 → ReLU, fc4 → Sigmoid)
-        x = self.base.fc1(x)                     # → [B, T, hidden_1]
-        x, _h1 = self.base.rnn1(x, h1_0)         # → [B, T, hidden_2]
-        x, _h2 = self.base.rnn2(x, h2_0)         # → [B, T, hidden_2]
-        x = self.base.fc2(x)                     # → [B, T, hidden_3]
+        x = self.base.fc1(x)  # → [B, T, hidden_1]
+        x, _h1 = self.base.rnn1(x, h1_0)  # → [B, T, hidden_2]
+        x, _h2 = self.base.rnn2(x, h2_0)  # → [B, T, hidden_2]
+        x = self.base.fc2(x)  # → [B, T, hidden_3]
         x = nn.functional.relu(x)
-        x = self.base.fc3(x)                     # → [B, T, hidden_3]
+        x = self.base.fc3(x)  # → [B, T, hidden_3]
         x = nn.functional.relu(x)
-        x = self.base.fc4(x)                     # → [B, T, F]
-        x = torch.sigmoid(x)                     # mask values in [0,1]
+        x = self.base.fc4(x)  # → [B, T, F]
+        x = torch.sigmoid(x)  # mask values in [0,1]
 
         # 4) Reshape back to [B, 1, F, T]
         mask_pred = x.permute(0, 2, 1).unsqueeze(1)
@@ -118,7 +120,9 @@ def create_noisy_batch(x_clean: torch.Tensor, device: torch.device):
     _, _, L = x_clean.shape
 
     # 1) Compute a linspace of amplitude scales, and their corresponding SNRs
-    amplitude_noise = torch.linspace(0.0001, 0.07, steps=NUM_LEVELS, device=device)  # [50]
+    amplitude_noise = torch.linspace(
+        0.0001, 0.07, steps=NUM_LEVELS, device=device
+    )  # [50]
     snr_values = 10 * torch.log10((x_clean.abs().mean() ** 2) / (amplitude_noise**2))
     print(f"Noise levels (SNR in dB): {snr_values.cpu().numpy()}")
 
@@ -163,10 +167,12 @@ def visualize_and_save_activations(model_history, snr_values, output_dir):
 
     for layer_name, layer_act in model_history.layer_dict_main_keys.items():
         # Skip unused layers by name if desired
-        if layer_name in {'zeros_1_2', 'zeros_2_3', 'gru_1_5:2', 'gru_2_6:2'}:
+        if layer_name in {"zeros_1_2", "zeros_2_3", "gru_1_5:2", "gru_2_6:2"}:
             continue
 
-        acts = model_history[layer_name].tensor_contents  # e.g. [NUM_LEVELS, T, F] or [1, NUM_LEVELS, F, T]
+        acts = model_history[
+            layer_name
+        ].tensor_contents  # e.g. [NUM_LEVELS, T, F] or [1, NUM_LEVELS, F, T]
         acts = acts.squeeze(0)  # remove leading batch dim if present
 
         # If shape is [NUM_LEVELS, F, T], swap to [NUM_LEVELS, T, F]
@@ -192,11 +198,11 @@ def visualize_and_save_activations(model_history, snr_values, output_dir):
             fig, ax = plt.subplots(figsize=(5, 4))
             im = ax.imshow(
                 acts_np[i].T,
-                origin='lower',
-                aspect='auto',
+                origin="lower",
+                aspect="auto",
                 vmin=vmin,
                 vmax=vmax,
-                cmap='viridis'
+                cmap="viridis",
             )
             ax.set_title(f"{layer_name} @ SNR={snr_np[i]:.2f} dB")
             ax.set_xlabel("Time Index")
@@ -206,7 +212,7 @@ def visualize_and_save_activations(model_history, snr_values, output_dir):
 
             # Save frame
             fname = os.path.join(layer_frame_dir, f"frame_{i:03d}.png")
-            plt.savefig(fname, bbox_inches='tight')
+            plt.savefig(fname, bbox_inches="tight")
             plt.close(fig)
             frame_filenames.append(fname)
 
@@ -217,8 +223,8 @@ def visualize_and_save_activations(model_history, snr_values, output_dir):
             gif_path,
             save_all=True,
             append_images=frames[1:],
-            duration=200,    # 200 ms per frame
-            loop=0           # loop forever
+            duration=200,  # 200 ms per frame
+            loop=0,  # loop forever
         )
         print(f"Saved GIF for layer '{layer_name}' → {gif_path}")
 
@@ -226,6 +232,7 @@ def visualize_and_save_activations(model_history, snr_values, output_dir):
 # ───────────────────────────────────────────────────────────────────────────────
 # Main Execution
 # ───────────────────────────────────────────────────────────────────────────────
+
 
 def main():
     # Load NSNet2 base model
@@ -238,23 +245,26 @@ def main():
     # Load and (re)sample the clean audio
     x_test, sample_rate = torchaudio.load(X_TEST_PATH)  # shape [1, waveform_len]
     if sample_rate != 16000:
-        resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+        resampler = torchaudio.transforms.Resample(
+            orig_freq=sample_rate, new_freq=16000
+        )
         x_test = resampler(x_test)
     x_test = x_test.unsqueeze(0).to(device)  # → [1, 1, L]
 
     # Build a batch of noisy waveforms [NUM_LEVELS, 1, 2*L]
-    x_noisy_batch, x_clean_batch, amplitude_noise, snr_values = create_noisy_batch(x_test, device)
+    x_noisy_batch, x_clean_batch, amplitude_noise, snr_values = create_noisy_batch(
+        x_test, device
+    )
 
     # Compute complex spectrograms and log‐power
     spec_complex = base_model.preproc(x_noisy_batch)  # [NUM_LEVELS, 1, F, T] (complex)
-    log_power_test = torch.log(spec_complex.abs() ** 2 + base_model.eps).squeeze(1)  # [NUM_LEVELS, F, T]
+    log_power_test = torch.log(spec_complex.abs() ** 2 + base_model.eps).squeeze(
+        1
+    )  # [NUM_LEVELS, F, T]
 
     # Log forward pass through MaskFromLogPower with TorchLens
     model_history = tl.log_forward_pass(
-        mask_model,
-        log_power_test,
-        layers_to_save="all",
-        vis_opt="rolled"
+        mask_model, log_power_test, layers_to_save="all", vis_opt="rolled"
     )
 
     # Save the activation dictionary to disk
