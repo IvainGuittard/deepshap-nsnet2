@@ -60,7 +60,7 @@ if not wav_files:
 
 # ─── Process Each WAV File ────────────────
 for x_input_path in wav_files:
-    print(f"Processing {x_input_path}...")
+    print(f"\n Processing {x_input_path}...")
     x_input, _ = load_and_resample(x_input_path, target_sr=16000)
     x_input = x_input.to(device)
     # x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
@@ -124,9 +124,7 @@ for x_input_path in wav_files:
 
     progress_bar.close()
     h5f.close()
-    print(
-        f"Done processing {x_input_path}!"
-    )
+    print(f"Done processing {x_input_path}!")
 
     # ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────
     plot_global_influence(h5_filename, input_basename, F_bins, T_frames)
