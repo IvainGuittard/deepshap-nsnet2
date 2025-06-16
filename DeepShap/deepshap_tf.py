@@ -60,7 +60,7 @@ if not wav_files:
 
 # ─── Process Each WAV File ────────────────
 for x_input_path in wav_files:
-    print(f"Processing {x_input_path}...")
+    print(f"\n Processing {x_input_path}...")
     x_input, _ = load_and_resample(x_input_path, target_sr=16000)
     x_input = x_input.to(device)
     # x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
@@ -79,10 +79,15 @@ for x_input_path in wav_files:
     if os.path.exists(h5_filename):
         detect_and_remove_incomplete_keys(h5_filename)
     h5f, existing_keys = create_h5_file_and_keys(h5_filename)
-    progress_bar = tqdm(total=F_bins * T_frames // 10, desc="Computing attributions")
+    time_division = 10
+    if "time_division" not in h5f:
+        h5f.create_dataset("time_division", data=time_division)
+    progress_bar = tqdm(
+        total=F_bins * T_frames // time_division, desc="Computing attributions"
+    )
 
     for f0 in range(F_bins):
-        for t0 in range(0, T_frames, 10):
+        for t0 in range(0, T_frames, time_division):
             # Specify the single‐pixel target: (channel_index, freq_index, time_index).
             # Here channel_index is always 0 (because wrapper output is [B,1,F,T]).
             target = (0, f0, t0)
@@ -124,9 +129,7 @@ for x_input_path in wav_files:
 
     progress_bar.close()
     h5f.close()
-    print(
-        f"Done processing {x_input_path}!"
-    )
+    print(f"Done processing {x_input_path}!")
 
     # ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────
     plot_global_influence(h5_filename, input_basename, F_bins, T_frames)
