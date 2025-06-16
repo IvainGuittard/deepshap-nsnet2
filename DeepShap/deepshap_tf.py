@@ -69,8 +69,6 @@ for x_input_path in wav_files:
         model, x_input
     )
     F_bins, T_frames = input_logpower.shape[-2:]
-    # Make a directory to save all attribution maps
-    os.makedirs("tf_attributions", exist_ok=True)
 
     # ─── C) Loop over every TF‐bin and save its attribution map ─────────────
     input_basename = os.path.basename(x_input_path).replace(".wav", "")

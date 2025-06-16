@@ -162,6 +162,10 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
 def plot_input_time_influence(h5_filename, input_basename, T_frames):
     # A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input time influence from {h5_filename}...")
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence.png"
+    if os.path.exists(save_path):
+        print(f"Input time influence plot already exists at {save_path}. Skipping.")
+        return
     h5f = h5py.File(h5_filename, "r")
     A_time = np.zeros((T_frames, T_frames), dtype=np.float32)
     for key in h5f:
@@ -178,11 +182,11 @@ def plot_input_time_influence(h5_filename, input_basename, T_frames):
     plt.colorbar(label="row‐normalized attribution")
     plt.tight_layout()
     os.makedirs(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        os.path.dirname(save_path),
         exist_ok=True,
     )
     plt.savefig(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence.png",
+        save_path,
         bbox_inches="tight",
     )
     plt.show()
@@ -194,6 +198,10 @@ def plot_input_time_influence(h5_filename, input_basename, T_frames):
 def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     # A_freq[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input frequency influence from {h5_filename}...")
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence.png"
+    if os.path.exists(save_path):
+        print(f"Input frequency influence plot already exists at {save_path}. Skipping.")
+        return
     h5f = h5py.File(h5_filename, "r")
     A_freq = np.zeros((F_bins, F_bins), dtype=np.float32)
     for key in h5f:
@@ -211,11 +219,11 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     plt.colorbar(label="row‐normalized attribution")
     plt.tight_layout()
     os.makedirs(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        os.path.dirname(save_path),
         exist_ok=True,
     )
     plt.savefig(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence.png",
+        save_path,
         bbox_inches="tight",
     )
     plt.show()
@@ -230,6 +238,10 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
     Correlation is computed across attribution contexts summed over (f0, f_in).
     """
     print(f"Plotting input time correlation from {h5_filename}...")
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_t_in_corr.png"
+    if os.path.exists(save_path):
+        print(f"Input time correlation plot already exists at {save_path}. Skipping.")
+        return
     h5f = h5py.File(h5_filename, "r")
     time_vectors = np.zeros((T_frames, 0), dtype=np.float32)
 
@@ -251,11 +263,11 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
     plt.colorbar(label="Pearson correlation")
     plt.tight_layout()
     os.makedirs(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        os.path.dirname(save_path),
         exist_ok=True,
     )
     plt.savefig(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_t_in_corr.png",
+        save_path,
         bbox_inches="tight",
     )
     plt.close()
@@ -270,6 +282,10 @@ def plot_input_freq_correlation(h5_filename, input_basename, F_bins):
     Correlation is computed across attribution contexts summed over (f0, t0, t_in).
     """
     print(f"Plotting input frequency correlation from {h5_filename}...")
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_f_in_corr.png"
+    if os.path.exists(save_path):
+        print(f"Input frequency correlation plot already exists at {save_path}. Skipping.")
+        return
     h5f = h5py.File(h5_filename, "r")
     corr_matrix_sum = np.zeros((F_bins, F_bins), dtype=np.float32)
     for key in h5f:
@@ -291,11 +307,11 @@ def plot_input_freq_correlation(h5_filename, input_basename, F_bins):
     plt.colorbar(label="Pearson correlation")
     plt.tight_layout()
     os.makedirs(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        os.path.dirname(save_path),
         exist_ok=True,
     )
     plt.savefig(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_f_in_corr.png",
+        save_path,
         bbox_inches="tight",
     )
     plt.close()
