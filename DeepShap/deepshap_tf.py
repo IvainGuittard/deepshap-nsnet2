@@ -79,10 +79,15 @@ for x_input_path in wav_files:
     if os.path.exists(h5_filename):
         detect_and_remove_incomplete_keys(h5_filename)
     h5f, existing_keys = create_h5_file_and_keys(h5_filename)
-    progress_bar = tqdm(total=F_bins * T_frames // 10, desc="Computing attributions")
+    time_division = 10
+    if "time_division" not in h5f:
+        h5f.create_dataset("time_division", data=time_division)
+    progress_bar = tqdm(
+        total=F_bins * T_frames // time_division, desc="Computing attributions"
+    )
 
     for f0 in range(F_bins):
-        for t0 in range(0, T_frames, 10):
+        for t0 in range(0, T_frames, time_division):
             # Specify the single‐pixel target: (channel_index, freq_index, time_index).
             # Here channel_index is always 0 (because wrapper output is [B,1,F,T]).
             target = (0, f0, t0)
