@@ -222,12 +222,12 @@ def prepare_logpower_deepshap_input_and_baseline(model, input):
     input_logpower = torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(1)
     # → input_logpower: [1, 257, T_frames]
 
-    # Build a “silent‐baseline” set (here 50 copies of log(eps)):
-    B_baseline = 50
+    # Build a “silent‐baseline” :
+    B_baseline = 20
     F_bins, T_frames = input_logpower.shape[1], input_logpower.shape[2]
     baseline_logpower = torch.log(
         torch.full((B_baseline, F_bins, T_frames), fill_value=model.eps, device="cuda")
-    )  # → shape [50, 257, T_frames]
+    )  # → shape [20, 257, T_frames]
 
     return input_logpower, baseline_logpower
 
