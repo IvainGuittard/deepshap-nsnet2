@@ -8,3 +8,5 @@ torchvision
 captum
 joblib
 argparse
+h5py
+seaborn
