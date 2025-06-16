@@ -8,6 +8,8 @@ import h5py
 from scipy.ndimage import zoom
 from utils.audio_features import compute_log_mel_spectrogram
 from config.parameters import sample_rate
+import seaborn as sns
+from scipy.cluster.hierarchy import linkage
 
 
 def save_plot(
@@ -123,7 +125,7 @@ def plot_spectrogram_and_attributions(
     plt.close(fig)
 
 
-def plot_global_influence(h5_filename, F_bins, T_frames):
+def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     # A_in2mask[f_in, t_in] = Σ_{f0, t0} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting global influence from {h5_filename}...")
     h5f = h5py.File(h5_filename, "r")
@@ -143,9 +145,13 @@ def plot_global_influence(h5_filename, F_bins, T_frames):
     plt.ylabel("input freq f_in")
     plt.colorbar(label="normalized attribution")
     plt.tight_layout()
-    os.makedirs("tf_attributions_collapsed", exist_ok=True)
+    os.makedirs(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        exist_ok=True,
+    )
     plt.savefig(
-        "tf_attributions_collapsed/in2mask_global_influence.png", bbox_inches="tight"
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_global_influence.png",
+        bbox_inches="tight",
     )
     plt.show()
     plt.close()
@@ -153,7 +159,7 @@ def plot_global_influence(h5_filename, F_bins, T_frames):
     h5f.close()
 
 
-def plot_input_time_influence(h5_filename, T_frames):
+def plot_input_time_influence(h5_filename, input_basename, T_frames):
     # A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input time influence from {h5_filename}...")
     h5f = h5py.File(h5_filename, "r")
@@ -171,14 +177,21 @@ def plot_input_time_influence(h5_filename, T_frames):
     plt.ylabel("output time t0")
     plt.colorbar(label="row‐normalized attribution")
     plt.tight_layout()
-    plt.savefig("tf_attributions_collapsed/time_influence.png", bbox_inches="tight")
+    os.makedirs(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        exist_ok=True,
+    )
+    plt.savefig(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence.png",
+        bbox_inches="tight",
+    )
     plt.show()
     plt.close()
     print("Input time influence plot saved.")
     h5f.close()
 
 
-def plot_input_freq_influence(h5_filename, F_bins):
+def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     # A_freq[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input frequency influence from {h5_filename}...")
     h5f = h5py.File(h5_filename, "r")
@@ -197,8 +210,133 @@ def plot_input_freq_influence(h5_filename, F_bins):
     plt.ylabel("output freq f0")
     plt.colorbar(label="row‐normalized attribution")
     plt.tight_layout()
-    plt.savefig("tf_attributions_collapsed/freq_influence.png", bbox_inches="tight")
+    os.makedirs(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        exist_ok=True,
+    )
+    plt.savefig(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence.png",
+        bbox_inches="tight",
+    )
     plt.show()
     plt.close()
     print("Input frequency influence plot saved.")
     h5f.close()
+
+
+def plot_input_time_correlation(h5_filename, input_basename, T_frames):
+    """
+    Compute Pearson correlation between each pair of input time steps (t_in).
+    Correlation is computed across attribution contexts summed over (f0, f_in).
+    """
+    print(f"Plotting input time correlation from {h5_filename}...")
+    h5f = h5py.File(h5_filename, "r")
+    time_vectors = np.zeros((T_frames, 0), dtype=np.float32)
+
+    for key in h5f:
+        attr = np.abs(h5f[key][:])  # shape: [f_in, t_in]
+        attr_summed = attr.sum(axis=0)  # sum over f_in → [t_in]
+        time_vectors = np.column_stack((time_vectors, attr_summed))  # shape: [t_in, N]
+
+    corr_matrix = np.corrcoef(time_vectors)
+    corr_matrix = np.nan_to_num(corr_matrix)
+
+    plt.figure(figsize=(5, 4))
+    plt.title("Input time–time correlation (Pearson)")
+    plt.imshow(
+        corr_matrix, origin="lower", aspect="auto", cmap="coolwarm", vmin=-1, vmax=1
+    )
+    plt.xlabel("Input time t_in")
+    plt.ylabel("Input time t_in")
+    plt.colorbar(label="Pearson correlation")
+    plt.tight_layout()
+    os.makedirs(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        exist_ok=True,
+    )
+    plt.savefig(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_t_in_corr.png",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print("Input time correlation plot saved.")
+    h5f.close()
+    return corr_matrix
+
+
+def plot_input_freq_correlation(h5_filename, input_basename, F_bins):
+    """
+    Compute Pearson correlation between each pair of input frequencies (f_in).
+    Correlation is computed across attribution contexts summed over (f0, t0, t_in).
+    """
+    print(f"Plotting input frequency correlation from {h5_filename}...")
+    h5f = h5py.File(h5_filename, "r")
+    corr_matrix_sum = np.zeros((F_bins, F_bins), dtype=np.float32)
+    for key in h5f:
+        attr = np.abs(h5f[key][:])  # shape: [f_in, t_in]
+        attr_summed = attr.sum(axis=1)  # sum over t_in → [f_in]
+        current_corr_matrix = np.corrcoef(attr_summed)
+        current_corr_matrix = np.nan_to_num(current_corr_matrix)
+        corr_matrix_sum += current_corr_matrix
+    corr_matrix = corr_matrix_sum / len(h5f)
+    corr_matrix = np.nan_to_num(corr_matrix)
+
+    plt.figure(figsize=(5, 4))
+    plt.title("Input frequency–frequency correlation (Pearson)")
+    plt.imshow(
+        corr_matrix, origin="lower", aspect="auto", cmap="coolwarm", vmin=-1, vmax=1
+    )
+    plt.xlabel("Input frequency f_in")
+    plt.ylabel("Input frequency f_in")
+    plt.colorbar(label="Pearson correlation")
+    plt.tight_layout()
+    os.makedirs(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        exist_ok=True,
+    )
+    plt.savefig(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_f_in_corr.png",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print("Input frequency correlation plot saved.")
+    h5f.close()
+    return corr_matrix
+
+
+def plot_clustered_freq_correlation(h5_filename, input_basename, F_bins):
+    """
+    Compute Pearson correlation between input frequencies and visualize clusters of co-activated frequencies.
+    The clustering is based on hierarchical linkage using (1 - Pearson correlation) as distance.
+    """
+    print(f"Clustering input frequency correlation from {h5_filename}...")
+    corr_matrix = plot_input_freq_correlation(h5_filename, input_basename, F_bins)
+    distance_matrix = 1 - corr_matrix
+    np.fill_diagonal(distance_matrix, 0)
+    sns.set(style="white")
+    clustergrid = sns.clustermap(
+        corr_matrix,
+        row_cluster=True,
+        col_cluster=True,
+        row_linkage=linkage(distance_matrix, method="average"),
+        col_linkage=linkage(distance_matrix, method="average"),
+        cmap="coolwarm",
+        vmin=-1,
+        vmax=1,
+        figsize=(6, 6),
+        xticklabels=False,
+        yticklabels=False,
+        cbar_kws={"label": "Pearson correlation"},
+    )
+
+    os.makedirs(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        exist_ok=True,
+    )
+    clustergrid.fig.suptitle("Clustered Input Frequency Correlation", y=1.02)
+    clustergrid.savefig(
+        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_f_in_corr_clustered.png",
+        bbox_inches="tight",
+    )
+    plt.close()
+    print("Clustered input frequency correlation plot saved.")

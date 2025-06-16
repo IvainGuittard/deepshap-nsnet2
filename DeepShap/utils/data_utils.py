@@ -191,7 +191,7 @@ def prepare_deepshap_input_and_baseline(
             total_rms_amplitude=rms_amplitude,
         )
         # Save the input with added noise
-        deepshap_input_path = f"data/added_noise_input/{file_basename.replace('.wav', '')}_freq_{freq_range[0]}-{freq_range[1]}_rms_{rms_amplitude}.wav"
+        deepshap_input_path = f"data/added_sinusoidal_noise_input/{file_basename.replace('.wav', '')}_freq_{freq_range[0]}-{freq_range[1]}_rms_{rms_amplitude}.wav"
         torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
 
         if baseline_type == "clean_audio":
@@ -222,12 +222,12 @@ def prepare_logpower_deepshap_input_and_baseline(model, input):
     input_logpower = torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(1)
     # → input_logpower: [1, 257, T_frames]
 
-    # Build a “silent‐baseline” set (here 50 copies of log(eps)):
-    B_baseline = 50
+    # Build a “silent‐baseline” :
+    B_baseline = 20
     F_bins, T_frames = input_logpower.shape[1], input_logpower.shape[2]
     baseline_logpower = torch.log(
         torch.full((B_baseline, F_bins, T_frames), fill_value=model.eps, device="cuda")
-    )  # → shape [50, 257, T_frames]
+    )  # → shape [20, 257, T_frames]
 
     return input_logpower, baseline_logpower
 
@@ -236,3 +236,31 @@ def create_h5_file_and_keys(h5_filename):
     h5f = h5py.File(h5_filename, "a")
     existing_keys = set(h5f.keys())
     return h5f, existing_keys
+
+
+def detect_and_remove_incomplete_keys(h5_filename):
+    """
+    Detect and remove incomplete or corrupted keys in an HDF5 file.
+
+    Args:
+        h5_filename (str): Path to the HDF5 file.
+    """
+    try:
+        print(f"Checking for corrupted keys in {h5_filename}...")
+        with h5py.File(h5_filename, "a") as h5f:  # Open in read/write mode
+            keys_to_remove = []
+            for key in h5f.keys():
+                try:
+                    _ = h5f[key][:]
+                except Exception as e:
+                    print(f"Key '{key}' is corrupted: {e}")
+                    keys_to_remove.append(key)
+
+            # Remove corrupted keys
+            for key in keys_to_remove:
+                print(f"Removing corrupted key: {key}")
+                del h5f[key]
+        print(f"Completed checking {h5_filename}. Corrupted keys removed if any.")
+
+    except Exception as e:
+        print(f"Error while processing {h5_filename}: {e}")
