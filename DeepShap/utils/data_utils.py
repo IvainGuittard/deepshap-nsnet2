@@ -191,7 +191,7 @@ def prepare_deepshap_input_and_baseline(
             total_rms_amplitude=rms_amplitude,
         )
         # Save the input with added noise
-        deepshap_input_path = f"data/added_noise_input/{file_basename.replace('.wav', '')}_freq_{freq_range[0]}-{freq_range[1]}_rms_{rms_amplitude}.wav"
+        deepshap_input_path = f"data/added_sinusoidal_noise_input/{file_basename.replace('.wav', '')}_freq_{freq_range[0]}-{freq_range[1]}_rms_{rms_amplitude}.wav"
         torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
 
         if baseline_type == "clean_audio":
