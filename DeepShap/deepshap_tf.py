@@ -127,7 +127,7 @@ for x_input_path in wav_files:
     progress_bar.close()
     h5f.close()
     print(
-        f"Done processing {x_input_path}! All TF‐bin attribution maps are in the folder: tf_attributions/"
+        f"Done processing {x_input_path}!"
     )
 
     # ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────

@@ -1,5 +1,5 @@
 """
-main_deep_shap.py is the main script for computing DeepLIFTShap attributions on audio files.
+main_deepshap.py is the main script for computing DeepLIFTShap attributions on audio files.
 It processes WAV files or directories containing WAV files, applies noise if specified, and computes attributions using the NSNet2 model.
 
 """
@@ -44,7 +44,7 @@ def process_file(
     subprocess.run(
         [
             "python",
-            "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/DeepShap/deep_shap_test.py",
+            "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/DeepShap/deepshap_tf.py",
             "--input",
             deepshap_input_path,
         ],
