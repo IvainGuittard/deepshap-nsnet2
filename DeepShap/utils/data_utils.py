@@ -236,3 +236,31 @@ def create_h5_file_and_keys(h5_filename):
     h5f = h5py.File(h5_filename, "a")
     existing_keys = set(h5f.keys())
     return h5f, existing_keys
+
+
+def detect_and_remove_incomplete_keys(h5_filename):
+    """
+    Detect and remove incomplete or corrupted keys in an HDF5 file.
+
+    Args:
+        h5_filename (str): Path to the HDF5 file.
+    """
+    try:
+        print(f"Checking for corrupted keys in {h5_filename}...")
+        with h5py.File(h5_filename, "a") as h5f:  # Open in read/write mode
+            keys_to_remove = []
+            for key in h5f.keys():
+                try:
+                    _ = h5f[key][:]
+                except Exception as e:
+                    print(f"Key '{key}' is corrupted: {e}")
+                    keys_to_remove.append(key)
+
+            # Remove corrupted keys
+            for key in keys_to_remove:
+                print(f"Removing corrupted key: {key}")
+                del h5f[key]
+        print(f"Completed checking {h5_filename}. Corrupted keys removed if any.")
+
+    except Exception as e:
+        print(f"Error while processing {h5_filename}: {e}")
