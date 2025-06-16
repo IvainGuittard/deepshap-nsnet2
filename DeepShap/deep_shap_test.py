@@ -12,6 +12,8 @@ from utils.plot_utils import (
     plot_global_influence,
     plot_input_time_influence,
     plot_input_freq_influence,
+    plot_input_time_correlation,
+    plot_input_freq_correlation,
 )
 from tqdm import tqdm
 from models.MaskFromLogPower import MaskFromLogPower
@@ -90,14 +92,17 @@ h5f.close()
 print("Done! All TF‐bin attribution maps are in the folder: tf_attributions/")
 
 
-# ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────
+    # ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────
+    plot_global_influence(h5_filename, input_basename, F_bins, T_frames)
 
-plot_global_influence(h5_filename, F_bins, T_frames)
+    # ─── E) Influence of input-time on each output-time ─────
+    plot_input_time_influence(h5_filename, input_basename, T_frames)
 
-# ─── E) Influence of input-time on each output-time ─────
+    # ─── F) Influence of input-frequency on output-frequency ─────
+    plot_input_freq_influence(h5_filename, input_basename, F_bins)
 
-plot_input_time_influence(h5_filename, T_frames)
+    # ─── G) Correlation between input-time and output-time ─────
+    plot_input_time_correlation(h5_filename, input_basename, T_frames)
 
-# ─── F) Influence of input-frequency on output-frequency ─────
-
-plot_input_freq_influence(h5_filename, F_bins)
+    # ─── H) Correlation between input-frequency and output-frequency ─────
+    plot_input_freq_correlation(h5_filename, input_basename, F_bins)
