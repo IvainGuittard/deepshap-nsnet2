@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import h5py
 from scipy.ndimage import zoom
 from utils.audio_features import compute_log_mel_spectrogram
-from config.parameters import sample_rate
+from config.parameters import sample_rate, hop_length, n_fft
 import seaborn as sns
 from scipy.cluster.hierarchy import linkage
 
@@ -131,6 +131,8 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     h5f = h5py.File(h5_filename, "r")
     A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
     for key in h5f:
+        if key.startswith("time_division"):
+            continue
         attr_map = h5f[key][:]
         A_in2mask += np.abs(attr_map)
     # Min–max normalize entire map so it’s in [0,1]
@@ -143,8 +145,25 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     plt.imshow(A_in2mask_norm, origin="lower", aspect="auto", cmap="magma")
     plt.xlabel("input time t_in")
     plt.ylabel("input freq f_in")
+
+    plt.xticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+
     plt.colorbar(label="normalized attribution")
     plt.tight_layout()
+
     os.makedirs(
         f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
         exist_ok=True,
@@ -169,6 +188,8 @@ def plot_input_time_influence(h5_filename, input_basename, T_frames):
     h5f = h5py.File(h5_filename, "r")
     A_time = np.zeros((T_frames, T_frames), dtype=np.float32)
     for key in h5f:
+        if key.startswith("time_division"):
+            continue
         f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
         attr_map = h5f[key][:]
         A_time[t0] += np.abs(attr_map).sum(axis=0)
@@ -179,6 +200,22 @@ def plot_input_time_influence(h5_filename, input_basename, T_frames):
     plt.imshow(A_time_norm, origin="lower", aspect="auto", cmap="viridis")
     plt.xlabel("input time t_in")
     plt.ylabel("output time t0")
+
+    plt.xticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+
     plt.colorbar(label="row‐normalized attribution")
     plt.tight_layout()
     os.makedirs(
@@ -200,11 +237,15 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     print(f"Plotting input frequency influence from {h5_filename}...")
     save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence.png"
     if os.path.exists(save_path):
-        print(f"Input frequency influence plot already exists at {save_path}. Skipping.")
+        print(
+            f"Input frequency influence plot already exists at {save_path}. Skipping."
+        )
         return
     h5f = h5py.File(h5_filename, "r")
     A_freq = np.zeros((F_bins, F_bins), dtype=np.float32)
     for key in h5f:
+        if key.startswith("time_division"):
+            continue
         f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
         attr_map = h5f[key][:]
         A_freq[f0] += np.abs(attr_map).sum(axis=1)
@@ -216,6 +257,22 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     plt.imshow(A_freq_norm, origin="lower", aspect="auto", cmap="plasma")
     plt.xlabel("input freq f_in")
     plt.ylabel("output freq f0")
+
+    plt.xticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+
     plt.colorbar(label="row‐normalized attribution")
     plt.tight_layout()
     os.makedirs(
@@ -246,6 +303,8 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
     time_vectors = np.zeros((T_frames, 0), dtype=np.float32)
 
     for key in h5f:
+        if key.startswith("time_division"):
+            continue
         attr = np.abs(h5f[key][:])  # shape: [f_in, t_in]
         attr_summed = attr.sum(axis=0)  # sum over f_in → [t_in]
         time_vectors = np.column_stack((time_vectors, attr_summed))  # shape: [t_in, N]
@@ -260,6 +319,22 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
     )
     plt.xlabel("Input time t_in")
     plt.ylabel("Input time t_in")
+
+    plt.xticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+
     plt.colorbar(label="Pearson correlation")
     plt.tight_layout()
     os.makedirs(
@@ -284,11 +359,15 @@ def plot_input_freq_correlation(h5_filename, input_basename, F_bins):
     print(f"Plotting input frequency correlation from {h5_filename}...")
     save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_f_in_corr.png"
     if os.path.exists(save_path):
-        print(f"Input frequency correlation plot already exists at {save_path}. Skipping.")
+        print(
+            f"Input frequency correlation plot already exists at {save_path}. Skipping."
+        )
         return
     h5f = h5py.File(h5_filename, "r")
     corr_matrix_sum = np.zeros((F_bins, F_bins), dtype=np.float32)
     for key in h5f:
+        if key.startswith("time_division"):
+            continue
         attr = np.abs(h5f[key][:])  # shape: [f_in, t_in]
         attr_summed = attr.sum(axis=1)  # sum over t_in → [f_in]
         current_corr_matrix = np.corrcoef(attr_summed)
@@ -304,6 +383,22 @@ def plot_input_freq_correlation(h5_filename, input_basename, F_bins):
     )
     plt.xlabel("Input frequency f_in")
     plt.ylabel("Input frequency f_in")
+
+    plt.xticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+
     plt.colorbar(label="Pearson correlation")
     plt.tight_layout()
     os.makedirs(
