@@ -20,7 +20,12 @@ import subprocess
 
 
 def process_file(
-    input_path, noise_type, baseline_type, freq_range=None, rms_amplitude=None
+    input_path,
+    noise_type,
+    baseline_type,
+    freq_range=None,
+    rms_amplitude=None,
+    reverberance=None,
 ):
     torch.cuda.empty_cache()
     file_basename = os.path.split(input_path)[-1]
@@ -39,6 +44,7 @@ def process_file(
         sample_rate,
         freq_range=freq_range,
         rms_amplitude=rms_amplitude,
+        reverberance=reverberance,
     )
 
     subprocess.run(
@@ -68,7 +74,7 @@ def main():
         "--noise_type",
         type=str,
         default="not added",
-        choices=["not_added", "impulsive", "sinusoidal"],
+        choices=["not_added", "impulsive", "sinusoidal", "reverberation"],
         help="Type of noise to add: 'not_added', 'impulsive' for impulsive noise, 'sinusoidal' for sinusoidal noise",
     )
     parser.add_argument(
@@ -84,6 +90,13 @@ def main():
         nargs="+",
         default=None,
         help="List of RMS amplitudes for sinusoidal noise (e.g., 0.01)",
+    )
+    parser.add_argument(
+        "--reverberances",
+        type=float,
+        nargs="+",
+        default=0.5,
+        help="Reverberation time for reverberances noise (default: 0.5)",
     )
     args = parser.parse_args()
 
@@ -107,19 +120,31 @@ def main():
             ):
                 freq_range = tuple(map(int, freq_range.split("-")))
                 process_file(
-                    input_path,
-                    args.noise_type,
-                    args.baseline_type,
-                    freq_range,
-                    rms_amplitude,
+                    input_path=input_path,
+                    noise_type=args.noise_type,
+                    baseline_type=args.baseline_type,
+                    freq_range=freq_range,
+                    rms_amplitude=rms_amplitude,
+                    reverberance=None,
+                )
+        elif args.noise_type == "reverberances":
+            for reverberance in args.reverberances:
+                process_file(
+                    input_path=input_path,
+                    noise_type=args.noise_type,
+                    baseline_type=args.baseline_type,
+                    freq_range=None,
+                    rms_amplitude=None,
+                    reverberance=reverberance,
                 )
         else:
             process_file(
-                input_path,
-                args.noise_type,
-                args.baseline_type,
-                None,
-                None,
+                input_path=input_path,
+                noise_type=args.noise_type,
+                baseline_type=args.baseline_type,
+                freq_range=None,
+                rms_amplitude=None,
+                reverberance=None,
             )
     print(
         "DeepLIFTShap attributions computed and saved successfully : noise type: "
