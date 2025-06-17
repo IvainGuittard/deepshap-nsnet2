@@ -26,7 +26,9 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     )
 
     plt.figure(figsize=(5, 4))
-    plt.title("Global influence of each input TF‐bin on the entire mask (min–max norm)")
+    plt.title(
+        f"Global influence of each input TF‐bin on the entire mask (min–max norm) \n {input_basename}"
+    )
     plt.imshow(A_in2mask_norm, origin="lower", aspect="auto", cmap="magma")
     plt.xlabel("input time t_in")
     plt.ylabel("input freq f_in")
@@ -81,7 +83,9 @@ def plot_input_time_influence(h5_filename, input_basename, T_frames):
     A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
 
     plt.figure(figsize=(5, 4))
-    plt.title("Normalized: How output‐time t0 depends on input‐time t_in")
+    plt.title(
+        f"Normalized: How output‐time t0 depends on input‐time t_in \n {input_basename}"
+    )
     plt.imshow(A_time_norm, origin="lower", aspect="auto", cmap="viridis")
     plt.xlabel("input time t_in")
     plt.ylabel("output time t0")
@@ -138,17 +142,20 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     A_freq_norm = A_freq / (A_freq.sum(axis=1, keepdims=True) + 1e-12)
 
     plt.figure(figsize=(5, 4))
-    plt.title("Normalized: How output‐freq f0 depends on input‐freq f_in")
+    plt.title(
+        f"Normalized: How output‐freq f0 depends on input‐freq f_in \n {input_basename}"
+    )
     plt.imshow(A_freq_norm, origin="lower", aspect="auto", cmap="plasma")
     plt.xlabel("input freq f_in")
     plt.ylabel("output freq f0")
 
     plt.xticks(
-        np.arange(0, F_bins, F_bins // 10),
+        np.arange(0, F_bins, F_bins // 5),
         [
             f"{f * sample_rate / (2 * F_bins):.0f} Hz"
-            for f in range(0, F_bins, F_bins // 10)
+            for f in range(0, F_bins, F_bins // 5)
         ],
+        rotation=45,
     )
     plt.yticks(
         np.arange(0, F_bins, F_bins // 10),
@@ -198,7 +205,7 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
     corr_matrix = np.nan_to_num(corr_matrix)
 
     plt.figure(figsize=(5, 4))
-    plt.title("Input time–time correlation (Pearson)")
+    plt.title(f"Input time–time correlation (Pearson) \n {input_basename}")
     plt.imshow(
         corr_matrix, origin="lower", aspect="auto", cmap="coolwarm", vmin=-1, vmax=1
     )
@@ -262,7 +269,7 @@ def plot_input_freq_correlation(h5_filename, input_basename, F_bins):
     corr_matrix = np.nan_to_num(corr_matrix)
 
     plt.figure(figsize=(5, 4))
-    plt.title("Input frequency–frequency correlation (Pearson)")
+    plt.title(f"Input frequency–frequency correlation (Pearson) \n {input_basename}")
     plt.imshow(
         corr_matrix, origin="lower", aspect="auto", cmap="coolwarm", vmin=-1, vmax=1
     )
