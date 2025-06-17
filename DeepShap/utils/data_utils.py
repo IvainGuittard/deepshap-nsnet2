@@ -44,6 +44,29 @@ def add_impulsive_noise(waveform, probability=0.001, amplitude=0.5):
     return waveform + impulsive_noise
 
 
+def add_reverb(waveform, sample_rate, reverberance=50.0, damping=50.0, room_scale=50.0):
+    """
+    Adds reverberation to the waveform using SoX effects.
+
+    Args:
+        waveform (Tensor): Input waveform tensor of shape [1, num_samples].
+        sample_rate (int): Sampling rate of the audio.
+        reverberance (float): Amount of reverb (0-100), higher means more echo.
+        damping (float): High-frequency damping (0-100).
+        room_scale (float): Size of the virtual room (0-100).
+
+    Returns:
+        Tensor: Reverberated waveform.
+    """
+    effects = [
+        ["reverb", str(reverberance), str(damping), str(room_scale)],
+    ]
+    waveform_reverb, _ = torchaudio.sox_effects.apply_effects_tensor(
+        waveform, sample_rate, effects
+    )
+    return waveform_reverb
+
+
 def prepare_deepshap_input_and_baseline(
     input_path,
     file_basename,
@@ -53,6 +76,7 @@ def prepare_deepshap_input_and_baseline(
     sample_rate,
     freq_range=None,
     rms_amplitude=None,
+    reverberance=50.0,
 ):
     baseline = None
 
@@ -82,6 +106,19 @@ def prepare_deepshap_input_and_baseline(
         )
         # Save the input with added noise
         deepshap_input_path = f"data/added_sinusoidal_noise_input/{file_basename.replace('.wav', '')}_freq_{freq_range[0]}-{freq_range[1]}_rms_{rms_amplitude}.wav"
+        torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
+
+        if baseline_type == "clean_audio":
+            baseline, _ = load_and_resample(input_path, sample_rate)
+            baseline = baseline.unsqueeze(0).to(device).repeat(10, 1, 1)
+        elif baseline_type == "zero":
+            baseline = torch.zeros((10, 1, deepshap_input.shape[-1]), device=device)
+
+    elif noise_type == "reverberation":
+        clean_input, _ = load_and_resample(input_path, sample_rate)
+        deepshap_input = add_reverb(clean_input, sample_rate, reverberance=reverberance)
+        # Save the input with added reverberation
+        deepshap_input_path = f"data/added_reverberation_input/{file_basename.replace('.wav', '')}_reverb_{reverberance}.wav"
         torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
 
         if baseline_type == "clean_audio":
