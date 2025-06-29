@@ -188,6 +188,7 @@ def detect_and_remove_incomplete_keys(h5_filename):
                 print(f"Removing corrupted key: {key}")
                 del h5f[key]
         print(f"Completed checking {h5_filename}. Corrupted keys removed if any.")
+        h5f.close()
 
     except Exception as e:
         print(f"Error while processing {h5_filename}: {e}")

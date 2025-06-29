@@ -127,7 +127,7 @@ def main():
                     rms_amplitude=rms_amplitude,
                     reverberance=None,
                 )
-        elif args.noise_type == "reverberances":
+        elif args.noise_type == "reverberation":
             for reverberance in args.reverberances:
                 process_file(
                     input_path=input_path,
