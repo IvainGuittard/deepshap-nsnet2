@@ -25,6 +25,7 @@ def process_file(
     freq_range=None,
     rms_amplitude=None,
     reverberance=None,
+    time_range=None,
 ):
     torch.cuda.empty_cache()
     file_basename = os.path.split(input_path)[-1]
@@ -41,6 +42,7 @@ def process_file(
         freq_range=freq_range,
         rms_amplitude=rms_amplitude,
         reverberance=reverberance,
+        time_range=time_range,
     )
 
     subprocess.run(
@@ -63,8 +65,15 @@ def main():
         "--noise_type",
         type=str,
         default="not added",
-        choices=["not_added", "impulsive", "sinusoidal", "reverberation"],
+        choices=["not_added", "sinusoidal", "reverberation", "white"],
         help="Type of noise to add: 'not_added', 'impulsive' for impulsive noise, 'sinusoidal' for sinusoidal noise",
+    )
+    parser.add_argument(
+        "--time_ranges",
+        type=str,
+        nargs="+",
+        default=None,
+        help="List of time ranges for white noise (e.g., '0-1')",
     )
     parser.add_argument(
         "--freq_ranges",
@@ -103,6 +112,7 @@ def main():
                     freq_range=freq_range,
                     rms_amplitude=rms_amplitude,
                     reverberance=None,
+                    time_range=None,
                 )
         elif args.noise_type == "reverberation":
             for reverberance in args.reverberances:
@@ -112,6 +122,21 @@ def main():
                     freq_range=None,
                     rms_amplitude=None,
                     reverberance=reverberance,
+                    time_range=None,
+                )
+        elif args.noise_type == "white":
+            for rms_amplitude, time_range in product(
+                args.rms_amplitudes, args.time_ranges
+            ):
+                time_range = tuple(map(float, time_range.split("-")))
+                rms_amplitude = float(rms_amplitude)
+                process_file(
+                    input_path=input_path,
+                    noise_type=args.noise_type,
+                    freq_range=None,
+                    rms_amplitude=rms_amplitude,
+                    reverberance=None,
+                    time_range=time_range,
                 )
         else:
             process_file(
@@ -120,6 +145,7 @@ def main():
                 freq_range=None,
                 rms_amplitude=None,
                 reverberance=None,
+                time_range=None,
             )
     print(
         "DeepLIFTShap attributions computed and saved successfully : noise type: "

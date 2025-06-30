@@ -99,7 +99,7 @@ for x_input_path in wav_files:
             )
             # attributions: [1, 257, T_frames]
             attr_map = attributions[0].detach().cpu().numpy()
-            h5f.create_dataset(key, data=attr_map, compression="gzip")
+            h5f.create_dataset(key, data=attr_map.astype("float16"), compression="gzip")
 
             plt.figure(figsize=(4, 3))
             plt.imshow(attr_map, origin="lower", aspect="auto", cmap="seismic")
