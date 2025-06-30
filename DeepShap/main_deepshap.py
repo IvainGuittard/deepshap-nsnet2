@@ -33,7 +33,6 @@ def process_file(
     print(
         f"\nPROCESSING {input_path} \nNoise type: {noise_type} \nFrequency range: {freq_range} \nRMS amplitude: {rms_amplitude}"
     )
-    model, device = load_nsnet2_model()
 
     deepshap_input, deepshap_input_path = prepare_deepshap_input(
         input_path,
