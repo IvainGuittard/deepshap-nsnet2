@@ -22,6 +22,10 @@ from sklearn.decomposition import PCA
 def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     # A_in2mask[f_in, t_in] = Σ_{f0, t0} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting global influence from {h5_filename}...")
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_global_influence.png"
+    if os.path.exists(save_path):
+        print(f"Global influence plot already exists at {save_path}. Skipping.")
+        return
     h5f = h5py.File(h5_filename, "r")
     A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
     for key in h5f:
@@ -61,11 +65,11 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     plt.tight_layout()
 
     os.makedirs(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}",
+        os.path.dirname(save_path),
         exist_ok=True,
     )
     plt.savefig(
-        f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_global_influence.png",
+        save_path,
         bbox_inches="tight",
     )
     plt.show()
