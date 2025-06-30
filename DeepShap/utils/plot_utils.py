@@ -38,7 +38,7 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
         A_in2mask.max() - A_in2mask.min() + 1e-12
     )
 
-    plt.figure(figsize=(5, 4))
+    plt.figure(figsize=(6, 4))
     plt.title(
         f"Global influence of each input TF‐bin on the entire mask (min–max norm) \n {input_basename}"
     )
@@ -95,7 +95,7 @@ def plot_input_time_influence(h5_filename, input_basename, T_frames):
         A_time[t0] += np.abs(attr_map).sum(axis=0)
     A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
 
-    plt.figure(figsize=(5, 4))
+    plt.figure(figsize=(6, 4))
     plt.title(
         f"Normalized: How output‐time t0 depends on input‐time t_in \n {input_basename}"
     )
@@ -154,7 +154,7 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     # Normalize each row so sum over f_in = 1
     A_freq_norm = A_freq / (A_freq.sum(axis=1, keepdims=True) + 1e-12)
 
-    plt.figure(figsize=(5, 4))
+    plt.figure(figsize=(6, 4))
     plt.title(
         f"Normalized: How output‐freq f0 depends on input‐freq f_in \n {input_basename}"
     )
@@ -218,7 +218,7 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
     corr_matrix = np.corrcoef(time_vectors)
     corr_matrix = np.nan_to_num(corr_matrix)
 
-    plt.figure(figsize=(5, 4))
+    plt.figure(figsize=(6, 4))
     plt.title(f"Input time–time correlation (Pearson) \n {input_basename}")
     plt.imshow(
         corr_matrix, origin="lower", aspect="auto", cmap="coolwarm", vmin=-1, vmax=1
@@ -282,7 +282,7 @@ def plot_input_freq_correlation(h5_filename, input_basename, F_bins):
     corr_matrix = corr_matrix_sum / len(h5f)
     corr_matrix = np.nan_to_num(corr_matrix)
 
-    plt.figure(figsize=(5, 4))
+    plt.figure(figsize=(6, 4))
     plt.title(f"Input frequency–frequency correlation (Pearson) \n {input_basename}")
     plt.imshow(
         corr_matrix, origin="lower", aspect="auto", cmap="coolwarm", vmin=-1, vmax=1
