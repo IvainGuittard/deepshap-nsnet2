@@ -10,13 +10,6 @@ from utils.data_utils import (
     create_h5_file_and_keys,
     detect_and_remove_incomplete_keys,
 )
-from utils.plot_utils import (
-    plot_global_influence,
-    plot_input_time_influence,
-    plot_input_freq_influence,
-    plot_input_time_correlation,
-    plot_input_freq_correlation,
-)
 from tqdm import tqdm
 from models.MaskFromLogPower import MaskFromLogPower
 
@@ -78,7 +71,7 @@ for x_input_path in wav_files:
     if os.path.exists(h5_filename):
         detect_and_remove_incomplete_keys(h5_filename)
     h5f, existing_keys = create_h5_file_and_keys(h5_filename)
-    time_division = 10
+    time_division = 1
     if "time_division" not in h5f:
         h5f.create_dataset("time_division", data=time_division)
     progress_bar = tqdm(
@@ -129,18 +122,3 @@ for x_input_path in wav_files:
     progress_bar.close()
     h5f.close()
     print(f"Done processing {x_input_path}!")
-
-    # ─── D) Collapse along (f0, f_in) to see “input‐bins’ global influence” ─────
-    plot_global_influence(h5_filename, input_basename, F_bins, T_frames)
-
-    # ─── E) Influence of input-time on each output-time ─────
-    plot_input_time_influence(h5_filename, input_basename, T_frames)
-
-    # ─── F) Influence of input-frequency on output-frequency ─────
-    plot_input_freq_influence(h5_filename, input_basename, F_bins)
-
-    # ─── G) Correlation between input-time and output-time ─────
-    plot_input_time_correlation(h5_filename, input_basename, T_frames)
-
-    # ─── H) Correlation between input-frequency and output-frequency ─────
-    plot_input_freq_correlation(h5_filename, input_basename, F_bins)
