@@ -52,12 +52,34 @@ def add_sinusoidal_noise(
     return waveform + noise
 
 
-def add_impulsive_noise(waveform, probability=0.001, amplitude=0.5):
+def add_white_noise(waveform, sample_rate, time_range=(0, 1), amplitude=0.01):
+    """
+    Adds white noise to a waveform within a specified time range.
+
+    Args:
+        waveform (Tensor): Input waveform tensor of shape [1, num_samples].
+        sample_rate (int): Sampling rate of the audio.
+        time_range (tuple): Start and end times in seconds for adding noise.
+        amplitude (float): Amplitude of the white noise.
+
+    Returns:
+        Tensor: Waveform with added white noise.
+    """
     device = waveform.device
-    noise_mask = torch.bernoulli(torch.full_like(waveform, probability)).to(device)
-    impulses = (2 * torch.rand_like(waveform) - 1) * amplitude
-    impulsive_noise = noise_mask * impulses
-    return waveform + impulsive_noise
+    num_samples = waveform.shape[1]
+
+    start_idx = int(time_range[0] * sample_rate)
+    end_idx = int(time_range[1] * sample_rate)
+    start_idx = max(0, start_idx)
+    end_idx = min(num_samples, end_idx)
+
+    # Generate white noise
+    noise = torch.rand(1, end_idx - start_idx, device=device) * 2 - 1
+    noise *= amplitude
+
+    waveform[:, start_idx:end_idx] += noise
+
+    return waveform
 
 
 def add_reverb(waveform, sample_rate, reverberance=50.0, damping=50.0, room_scale=50.0):
@@ -91,6 +113,7 @@ def prepare_deepshap_input(
     freq_range=None,
     rms_amplitude=None,
     reverberance=50.0,
+    time_range=None,
 ):
     if noise_type == "not_added":
         deepshap_input, _ = load_and_resample(input_path, sample_rate)
@@ -119,6 +142,19 @@ def prepare_deepshap_input(
 
         # Save the input with added reverberation
         deepshap_input_path = f"data/added_reverberation_input/{file_basename.replace('.wav', '')}_reverb_{reverberance}.wav"
+        torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
+
+    elif noise_type == "white":
+        clean_input, _ = load_and_resample(input_path, sample_rate)
+        deepshap_input = add_white_noise(
+            clean_input,
+            sample_rate,
+            time_range=time_range,
+            amplitude=rms_amplitude,
+        )
+
+        # Save the input with added white noise
+        deepshap_input_path = f"data/added_white_noise_input/{file_basename.replace('.wav', '')}_white_noise_{time_range[0]}-{time_range[1]}_amplitude_{rms_amplitude}.wav"
         torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
 
     else:
