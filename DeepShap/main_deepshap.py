@@ -7,8 +7,6 @@ It processes WAV files or directories containing WAV files, applies noise if spe
 import os
 import sys
 
-from DeepShap.utils.data_utils import get_wav_files
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import torch
@@ -16,6 +14,7 @@ from itertools import product
 from config.parameters import sample_rate
 from utils.data_utils import (
     prepare_deepshap_input,
+    get_wav_files,
 )
 import subprocess
 
@@ -124,7 +123,7 @@ def main():
             )
     print(
         "DeepLIFTShap attributions computed and saved successfully : noise type: "
-        f"{args.noise_type}, baseline type: {args.baseline_type}"
+        f"{args.noise_type}"
     )
 
 
