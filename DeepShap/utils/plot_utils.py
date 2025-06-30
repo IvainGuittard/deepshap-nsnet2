@@ -192,14 +192,15 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
         print(f"Input time correlation plot already exists at {save_path}. Skipping.")
         return
     h5f = h5py.File(h5_filename, "r")
-    time_vectors = np.zeros((T_frames, 0), dtype=np.float32)
-
-    for key in h5f:
+    keys = tqdm(h5f.keys(), desc="Processing keys")
+    time_vectors = np.zeros((T_frames, len(keys)), dtype=np.float32)
+    for idx, key in enumerate(keys):
+        keys.set_description(f"Processing key: {key}")
         if key.startswith("time_division"):
             continue
         attr = np.abs(h5f[key][:])  # shape: [f_in, t_in]
         attr_summed = attr.sum(axis=0)  # sum over f_in → [t_in]
-        time_vectors = np.column_stack((time_vectors, attr_summed))  # shape: [t_in, N]
+        time_vectors[:, idx] = attr_summed
 
     corr_matrix = np.corrcoef(time_vectors)
     corr_matrix = np.nan_to_num(corr_matrix)
