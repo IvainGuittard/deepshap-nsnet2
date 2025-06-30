@@ -90,18 +90,7 @@ def main():
     )
     args = parser.parse_args()
 
-    if os.path.isfile(args.input_dir):
-        wav_files = [args.input_dir]  # Single file
-    elif os.path.isdir(args.input_dir):
-        wav_files = [
-            os.path.join(args.input_dir, f)
-            for f in os.listdir(args.input_dir)
-            if f.endswith(".wav")
-        ]  # All .wav files in the directory
-    else:
-        raise ValueError(
-            f"Invalid input: {args.input_dir}. Must be a WAV file or a directory."
-        )
+    wav_files = get_wav_files(args)
 
     for input_path in wav_files:
         if args.noise_type == "sinusoidal":

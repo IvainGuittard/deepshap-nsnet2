@@ -15,6 +15,22 @@ def load_and_resample(path, target_sr):
     return waveform, target_sr
 
 
+def get_wav_files(args):
+    if os.path.isfile(args.input_dir):
+        wav_files = [args.input_dir]
+    elif os.path.isdir(args.input_dir):
+        wav_files = [
+            os.path.join(args.input_dir, f)
+            for f in os.listdir(args.input_dir)
+            if f.endswith(".wav")
+        ]
+    else:
+        raise ValueError(
+            f"Invalid input: {args.input_dir}. Must be a WAV file or a directory."
+        )
+    return wav_files
+
+
 def add_sinusoidal_noise(
     waveform, sample_rate, freq_range=(1000, 2000), total_rms_amplitude=0.01
 ):
