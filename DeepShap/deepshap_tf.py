@@ -32,15 +32,14 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# ─── A) Load NSNet2 ────────────────
-# and that you have already defined `MaskFromLogPower` from the previous steps.
+# Load the NSNet2 model
 model, device = load_nsnet2_model()
-# Wrap the log‐power → mask logic in Captum:
 
+# Wrap the log‐power → mask logic in Captum:
 wrapper = MaskFromLogPower(model).cuda().train()
 dl_shap = DeepLiftShap(wrapper)
 
-# ─── B) Prepare one test log‐power spectrogram + a set of baselines ───────
+# Prepare one test log‐power spectrogram + a set of baselines
 input_path = args.input
 if os.path.isdir(input_path):
     wav_files = [

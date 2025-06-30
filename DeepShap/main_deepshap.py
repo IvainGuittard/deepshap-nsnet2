@@ -7,14 +7,15 @@ It processes WAV files or directories containing WAV files, applies noise if spe
 import os
 import sys
 
+from DeepShap.utils.data_utils import get_wav_files
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import torch
 from itertools import product
 from config.parameters import sample_rate
-from utils.model_utils import load_nsnet2_model
 from utils.data_utils import (
-    prepare_deepshap_input_and_baseline,
+    prepare_deepshap_input,
 )
 import subprocess
 
@@ -22,7 +23,6 @@ import subprocess
 def process_file(
     input_path,
     noise_type,
-    baseline_type,
     freq_range=None,
     rms_amplitude=None,
     reverberance=None,
@@ -35,12 +35,10 @@ def process_file(
     )
     model, device = load_nsnet2_model()
 
-    deepshap_input, baseline, deepshap_input_path = prepare_deepshap_input_and_baseline(
+    deepshap_input, deepshap_input_path = prepare_deepshap_input(
         input_path,
         file_basename,
         noise_type,
-        baseline_type,
-        device,
         sample_rate,
         freq_range=freq_range,
         rms_amplitude=rms_amplitude,
@@ -50,7 +48,7 @@ def process_file(
     subprocess.run(
         [
             "python",
-            "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/DeepShap/deepshap_tf.py",
+            "DeepShap/deepshap_tf.py",
             "--input",
             deepshap_input_path,
         ],
@@ -62,13 +60,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--input_dir", type=str, required=True, help="Folder with wav files"
-    )
-    parser.add_argument(
-        "--baseline_type",
-        type=str,
-        default="zero",
-        choices=["zero", "clean_audio"],
-        help="Baseline type for attributions: 'zero' for zero baseline, 'clean' for clean audio baseline",
     )
     parser.add_argument(
         "--noise_type",
@@ -122,7 +113,6 @@ def main():
                 process_file(
                     input_path=input_path,
                     noise_type=args.noise_type,
-                    baseline_type=args.baseline_type,
                     freq_range=freq_range,
                     rms_amplitude=rms_amplitude,
                     reverberance=None,
@@ -132,7 +122,6 @@ def main():
                 process_file(
                     input_path=input_path,
                     noise_type=args.noise_type,
-                    baseline_type=args.baseline_type,
                     freq_range=None,
                     rms_amplitude=None,
                     reverberance=reverberance,
@@ -141,7 +130,6 @@ def main():
             process_file(
                 input_path=input_path,
                 noise_type=args.noise_type,
-                baseline_type=args.baseline_type,
                 freq_range=None,
                 rms_amplitude=None,
                 reverberance=None,

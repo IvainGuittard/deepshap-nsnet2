@@ -67,29 +67,18 @@ def add_reverb(waveform, sample_rate, reverberance=50.0, damping=50.0, room_scal
     return waveform_reverb
 
 
-def prepare_deepshap_input_and_baseline(
+def prepare_deepshap_input(
     input_path,
     file_basename,
     noise_type,
-    baseline_type,
-    device,
     sample_rate,
     freq_range=None,
     rms_amplitude=None,
     reverberance=50.0,
 ):
-    baseline = None
-
     if noise_type == "not_added":
         deepshap_input, _ = load_and_resample(input_path, sample_rate)
         deepshap_input_path = input_path
-        if baseline_type == "clean_audio":
-            baseline, _ = load_and_resample(
-                f"data/clean_trainset_28spk_wav/{file_basename}", sample_rate
-            )
-            baseline = baseline.unsqueeze(0).to(device).repeat(10, 1, 1)
-        elif baseline_type == "zero":
-            baseline = torch.zeros((10, 1, deepshap_input.shape[-1]), device=device)
 
     elif noise_type == "sinusoidal":
         if freq_range is None or rms_amplitude is None:
@@ -108,29 +97,18 @@ def prepare_deepshap_input_and_baseline(
         deepshap_input_path = f"data/added_sinusoidal_noise_input/{file_basename.replace('.wav', '')}_freq_{freq_range[0]}-{freq_range[1]}_rms_{rms_amplitude}.wav"
         torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
 
-        if baseline_type == "clean_audio":
-            baseline, _ = load_and_resample(input_path, sample_rate)
-            baseline = baseline.unsqueeze(0).to(device).repeat(10, 1, 1)
-        elif baseline_type == "zero":
-            baseline = torch.zeros((10, 1, deepshap_input.shape[-1]), device=device)
-
     elif noise_type == "reverberation":
         clean_input, _ = load_and_resample(input_path, sample_rate)
         deepshap_input = add_reverb(clean_input, sample_rate, reverberance=reverberance)
+
         # Save the input with added reverberation
         deepshap_input_path = f"data/added_reverberation_input/{file_basename.replace('.wav', '')}_reverb_{reverberance}.wav"
         torchaudio.save(deepshap_input_path, deepshap_input, sample_rate=sample_rate)
 
-        if baseline_type == "clean_audio":
-            baseline, _ = load_and_resample(input_path, sample_rate)
-            baseline = baseline.unsqueeze(0).to(device).repeat(10, 1, 1)
-        elif baseline_type == "zero":
-            baseline = torch.zeros((10, 1, deepshap_input.shape[-1]), device=device)
-
     else:
         raise ValueError(f"Unknown noise type: {noise_type}")
 
-    return deepshap_input, baseline, deepshap_input_path
+    return deepshap_input, deepshap_input_path
 
 
 def prepare_logpower_deepshap_input_and_baseline(model, input):
