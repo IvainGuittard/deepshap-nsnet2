@@ -7,15 +7,13 @@ import matplotlib.pyplot as plt
 import torch
 import h5py
 from config.parameters import sample_rate, hop_length, n_fft
-from utils.data_utils import detect_and_remove_incomplete_keys, load_and_resample
+from utils.data_utils import load_and_resample
 from utils.model_utils import load_nsnet2_model
 import cv2
 from tqdm import tqdm
 import matplotlib as mpl
 import io
 from PIL import Image
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
 
 
 def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
@@ -77,47 +75,68 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     h5f.close()
 
 
-def plot_input_time_influence(h5_filename, input_basename, T_frames):
+def plot_input_time_influence(
+    h5_filename, input_basename, T_frames, start_time=0, end_time=None
+):
     # A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input time influence from {h5_filename}...")
-    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence.png"
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence_{start_time:.2f}_{end_time:.2f}.png"
     if os.path.exists(save_path):
         print(f"Input time influence plot already exists at {save_path}. Skipping.")
         return
+
+    if end_time is None or end_time > T_frames * hop_length / sample_rate:
+        end_frame = T_frames
+    else:
+        end_frame = int(end_time * sample_rate / hop_length)
+    start_frame = int(start_time * sample_rate / hop_length)
+    plot_length = end_frame - start_frame
+
     h5f = h5py.File(h5_filename, "r")
-    A_time = np.zeros((T_frames, T_frames), dtype=np.float32)
+    A_time = np.zeros((plot_length, plot_length), dtype=np.float32)
     for key in h5f:
         if key.startswith("time_division"):
             continue
         f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
-        attr_map = h5f[key][:]
-        A_time[t0] += np.abs(attr_map).sum(axis=0)
+        if t0 < start_frame or t0 >= end_frame:
+            continue
+        attr_map = h5f[key][:, start_frame:end_frame]
+        A_time[t0 - start_frame] += np.abs(attr_map).sum(axis=0)
     A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
 
     plt.figure(figsize=(6, 4))
     plt.title(
-        f"Normalized: How output‐time t0 depends on input‐time t_in \n {input_basename}"
+        f"Normalized from {start_time:.2f}s to {end_time:.2f}s: How output‐time t0 depends on input‐time t_in \n {input_basename}"
     )
-    plt.imshow(A_time_norm, origin="lower", aspect="auto", cmap="viridis")
+
+    plt.imshow(
+        A_time_norm,
+        origin="lower",
+        aspect="auto",
+        cmap="viridis",
+        norm=LogNorm(vmin=1e-4, vmax=A_time_norm.max()),  # Logarithmic scale
+    )
+
     plt.xlabel("input time t_in")
     plt.ylabel("output time t0")
 
     plt.xticks(
-        np.arange(0, T_frames, T_frames // 5),
+        np.arange(0, plot_length, plot_length // 5),
         [
             f"{(t * hop_length) / sample_rate:.2f} s"
-            for t in range(0, T_frames, T_frames // 5)
+            for t in range(0, plot_length, plot_length // 5)
         ],
+        rotation=45,
     )
     plt.yticks(
-        np.arange(0, T_frames, T_frames // 5),
+        np.arange(0, plot_length, plot_length // 5),
         [
             f"{(t * hop_length) / sample_rate:.2f} s"
-            for t in range(0, T_frames, T_frames // 5)
+            for t in range(0, plot_length, plot_length // 5)
         ],
     )
 
-    plt.colorbar(label="row‐normalized attribution")
+    plt.colorbar(label="row‐normalized attribution (log scale)")
     plt.tight_layout()
     os.makedirs(
         os.path.dirname(save_path),
@@ -190,6 +209,90 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
     plt.show()
     plt.close()
     print("Input frequency influence plot saved.")
+    h5f.close()
+
+
+def plot_input_low_freq_influence(
+    h5_filename, input_basename, F_bins, high_freq_cutoff=1000
+):
+    """
+    Compute and plot input frequency influence for a specific frequency window.
+    A_freq_window[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]| within the window.
+
+    Args:
+        h5_filename (str): Path to the HDF5 file containing attribution data.
+        input_basename (str): Base name for saving the plot.
+        F_bins (int): Total number of frequency bins.
+        freq_window (tuple): Frequency window as (start_freq, end_freq) in Hz.
+    """
+    print(
+        f"Plotting input frequency influence for low frequencies from {h5_filename}..."
+    )
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_low_freq_influence_{high_freq_cutoff}.png"
+    if os.path.exists(save_path):
+        print(
+            f"Input frequency influence plot for window already exists at {save_path}. Skipping."
+        )
+        return
+
+    h5f = h5py.File(h5_filename, "r")
+
+    # Compute frequency bin indices for the window
+    end_bin = int(high_freq_cutoff * 2 * F_bins / sample_rate)
+    A_freq_window = np.zeros((F_bins, end_bin), dtype=np.float32)
+
+    for key in h5f:
+        if key.startswith("time_division"):
+            continue
+        f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
+        attr_map = h5f[key][:]  # shape: [f_in, t_in]
+        # Sum only within the frequency window
+        A_freq_window[f0] += np.abs(attr_map[:end_bin]).sum(axis=1)
+
+    # Normalize each row so sum over f_in = 1
+    A_freq_window_norm = A_freq_window / (
+        A_freq_window.sum(axis=1, keepdims=True) + 1e-12
+    )
+
+    plt.figure(figsize=(6, 4))
+    plt.title(
+        f"Normalized: How output‐freq f0 depends on input‐freq f_in \n {input_basename} (low frequencies up to {high_freq_cutoff} Hz)"
+    )
+    plt.imshow(A_freq_window_norm, origin="lower", aspect="auto", cmap="plasma")
+    plt.xlabel("input freq f_in")
+    plt.ylabel("output freq f0")
+
+    plt.xticks(
+        np.arange(0, end_bin, end_bin // 5),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, end_bin, end_bin // 5)
+        ],
+        rotation=45,
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+
+    plt.colorbar(label="row‐normalized attribution")
+    plt.tight_layout()
+    os.makedirs(
+        os.path.dirname(save_path),
+        exist_ok=True,
+    )
+    plt.savefig(
+        save_path,
+        bbox_inches="tight",
+    )
+    plt.show()
+    plt.close()
+    print(
+        f"Input frequency influence plot for low frequencies up to {high_freq_cutoff} Hz saved."
+    )
     h5f.close()
 
 
@@ -362,9 +465,9 @@ def plot_stft_spectrogram(input_path, input_basename):
         ],
     )
 
-    os.makedirs(f"DeepShap/attributions/spectrograms/{input_basename}", exist_ok=True)
+    os.makedirs(f"DeepShap/attributions/spectrograms", exist_ok=True)
     plt.savefig(
-        f"DeepShap/attributions/spectrograms/{input_basename}/{input_basename}_stft_spectrogram.png",
+        f"DeepShap/attributions/spectrograms/{input_basename}_stft_spectrogram.png",
         bbox_inches="tight",
     )
     plt.close()
@@ -565,68 +668,3 @@ def create_colorbar(height, cmap="magma"):
     return np.array(colorbar_img)
 
 
-def visualize_tsne_from_attributions(
-    h5_filename, input_basename, color_by="f_out", pca_dim=50, perplexity=30
-):
-    print(f"Loading attributions from: {h5_filename}")
-    h5f = h5py.File(h5_filename, "r")
-
-    # Collect all attribution tensors (skip time_division keys)
-    attr_maps = [h5f[key][:] for key in h5f if not key.startswith("time_division")]
-
-    all_attr = np.stack(attr_maps, axis=0)  # [N_maps, F_out, T_out, F_in, T_in]
-    N_maps, F_out, T_out, F_in, T_in = all_attr.shape
-    print(f"Attribution tensor shape: {all_attr.shape}")
-
-    # Average across all maps if needed (can also try other strategies)
-    avg_attr = np.mean(all_attr, axis=0)  # shape: [F_out, T_out, F_in, T_in]
-
-    # Flatten each output bin’s received attribution vector
-    attr_vectors = avg_attr.reshape(F_out * T_out, F_in * T_in)
-
-    # Optionally reduce with PCA
-    if pca_dim is not None:
-        print(f"Applying PCA (dim = {pca_dim})...")
-        attr_vectors = PCA(n_components=pca_dim).fit_transform(attr_vectors)
-
-    # Apply t-SNE
-    print("Running t-SNE...")
-    tsne = TSNE(
-        n_components=2,
-        perplexity=perplexity,
-        learning_rate="auto",
-        init="pca",
-        random_state=0,
-    )
-    tsne_proj = tsne.fit_transform(attr_vectors)  # shape: [F_out * T_out, 2]
-
-    # Build color labels
-    f_coords = np.repeat(np.arange(F_out), T_out)
-    t_coords = np.tile(np.arange(T_out), F_out)
-    if color_by == "f_out":
-        color_vals = f_coords
-        color_label = "Output Frequency Bin"
-    elif color_by == "t_out":
-        color_vals = t_coords
-        color_label = "Output Time Frame"
-    else:
-        raise ValueError("color_by must be 'f_out' or 't_out'")
-
-    # Plotting
-    plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(
-        tsne_proj[:, 0], tsne_proj[:, 1], c=color_vals, cmap="plasma", s=10
-    )
-    plt.colorbar(scatter, label=color_label)
-    plt.title(f"t-SNE of output TF bins by received attribution\n{input_basename}")
-    plt.xlabel("t-SNE 1")
-    plt.ylabel("t-SNE 2")
-
-    save_dir = f"DeepShap/attributions/tf_attributions_tsne/{input_basename}"
-    os.makedirs(save_dir, exist_ok=True)
-    plt.savefig(
-        os.path.join(save_dir, f"{input_basename}_tsne_{color_by}.png"),
-        bbox_inches="tight",
-    )
-    print("t-SNE visualization saved.")
-    h5f.close()
