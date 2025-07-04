@@ -14,6 +14,7 @@ from tqdm import tqdm
 import matplotlib as mpl
 import io
 from PIL import Image
+from matplotlib.colors import LogNorm
 
 
 def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
@@ -39,7 +40,13 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
     plt.title(
         f"Global influence of each input TF‐bin on the entire mask (min–max norm) \n {input_basename}"
     )
-    plt.imshow(A_in2mask_norm, origin="lower", aspect="auto", cmap="magma")
+    plt.imshow(
+        A_in2mask_norm,
+        origin="lower",
+        aspect="auto",
+        cmap="viridis",
+        norm=LogNorm(vmin=1e-4, vmax=A_in2mask_norm.max()),  # Logarithmic scale
+    )
     plt.xlabel("input time t_in")
     plt.ylabel("input freq f_in")
 
