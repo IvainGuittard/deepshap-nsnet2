@@ -14,12 +14,12 @@ from utils.data_utils import (
 from utils.plot_utils import (
     plot_global_influence,
     plot_input_freq_influence,
+    plot_input_low_freq_influence,
     plot_input_time_influence,
     plot_input_time_correlation,
     make_time_normalized_video_from_attributions,
     make_video_from_attributions,
     make_frame_grouped_video_from_attributions,
-    visualize_tsne_from_attributions,
 )
 from utils.model_utils import load_nsnet2_model
 
@@ -27,6 +27,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def plot_attributions(wav_file):
+
     model, device = load_nsnet2_model()
     # Wrap the log‐power → mask logic in Captum:
 
@@ -46,12 +47,17 @@ def plot_attributions(wav_file):
     if not os.path.exists(h5_filename):
         print(f"File {h5_filename} does not exist. Skipping...")
         return
+
     detect_and_remove_incomplete_keys(h5_filename)
+
     # A) Collapse along (f0, f_in) to see “input‐bins’ global influence”
     plot_global_influence(h5_filename, input_basename, F_bins, T_frames)
 
     # B) Influence of input-time on each output-time
     plot_input_freq_influence(h5_filename, input_basename, F_bins)
+    plot_input_low_freq_influence(
+        h5_filename, input_basename, F_bins, high_freq_cutoff=1000
+    )
 
     # C) Influence of input-frequency on each output-frequency
     plot_input_time_influence(h5_filename, input_basename, T_frames)
@@ -78,10 +84,6 @@ def plot_attributions(wav_file):
         F_bins,
         T_frames,
         frame_grouping=10,
-    )
-    visualize_tsne_from_attributions(
-        h5_filename,
-        input_basename,
     )
 
 

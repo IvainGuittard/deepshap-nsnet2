@@ -101,13 +101,6 @@ for x_input_path in wav_files:
             attr_map = attributions[0].detach().cpu().numpy()
             h5f.create_dataset(key, data=attr_map.astype("float16"), compression="gzip")
 
-            plt.figure(figsize=(4, 3))
-            plt.imshow(attr_map, origin="lower", aspect="auto", cmap="seismic")
-            plt.title(f"Attribution for mask[0,0,{f0},{t0}]")
-            plt.xlabel("Time frame t")
-            plt.ylabel("Freq bin f")
-            plt.colorbar(fraction=0.046, pad=0.04)
-
             os.makedirs(
                 f"DeepShap/attributions/tf_attribution_maps/{input_basename}_tf_attributions",
                 exist_ok=True,

@@ -75,30 +75,36 @@ pip install -r requirements.txt
 
 ## Running the main script
 
-The script `DeepShap/main_deepshap.py` computes Shapley values for time-frequency bins of audio files using the NsNet2 model. Attributions are stored in HDF5 (`.h5`) format for each input file and can be visualized using provided plotting functions.
+The script `DeepShap/main_deepshap.py` computes Shapley values for time-frequency bins of audio files using the NsNet2 model. Attributions are stored in HDF5 (`.h5`) format for each input file.
 
 To run the script:
 
 ```bash
-python DeepShap/main_deepshap.py --baseline_type zero --input_dir data/noisy_input_tests --noise_type not_added
+python DeepShap/main_deepshap.py --input_dir <path_to_input_wav_directory> --noise_type not_added
 ```
 
 ### Parameters
 
 - `--input_dir`: **(Required)** Directory containing input `.wav` audio files to process.
 
-- `--baseline_type`: Type of baseline used for computing attributions. Options:
-  - `zero`: Use a zero-valued (silent) input as the baseline.
-  - `clean_audio`: Use the clean version of the audio file as the baseline.
-
 - `--noise_type`: Type of noise to consider or add. Options:
   - `not_added`: No noise is added (original input is used as-is).
   - `impulsive`: Add impulsive noise to the input.
   - `sinusoidal`: Add sinusoidal noise with customizable frequency ranges and amplitudes.
   - `reverberation`: Simulate reverberation by convolving input with a room impulse response.
+  - `white`: Add white noise in specified time ranges and amplitudes.
 
-- `--freq_ranges`: *(Optional)* List of frequency ranges (e.g., `1000-2000`) for sinusoidal noise injection. Should be specified if `--noise_type` is `sinusoidal`.
+- `--freq_ranges`: *(Optional)* List of frequency ranges for sinusoidal noise injection (e.g., `1000-2000`). Required if `--noise_type` is `sinusoidal`.
 
-- `--rms_amplitudes`: *(Optional)* List of RMS amplitudes (e.g., `0.01`) for the sinusoidal components. Should be specified with `--freq_ranges`.
+- `--rms_amplitudes`: *(Optional)* List of RMS amplitudes (e.g., `0.01`) for the sinusoidal or white noise. Required if `--noise_type` is `sinusoidal` or `white`.
+
+- `--time_ranges`: *(Optional)* List of time ranges (e.g., `0.0-1.0`) during which white noise should be added. Required if `--noise_type` is `white`.
 
 - `--reverberances`: *(Optional)* Reverberation time(s) used when `--noise_type` is `reverberation`. Default is `0.5`.
+
+## Plotting the Results
+
+Once the attribution maps have been computed using `main_deepshap.py`, you can generate various interpretability visualizations by running:
+
+```bash
+python DeepShap/plot_all_attributions.py --input_dir <path_to_input_wav_directory>
