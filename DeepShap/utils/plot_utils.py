@@ -88,6 +88,8 @@ def plot_input_time_influence(
     # A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input time influence from {h5_filename}...")
     save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence_{start_time:.2f}_{end_time:.2f}.png"
+    if start_time == 0 and end_time is None:
+        save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence.png"
     if os.path.exists(save_path):
         print(f"Input time influence plot already exists at {save_path}. Skipping.")
         return
@@ -105,15 +107,16 @@ def plot_input_time_influence(
         if key.startswith("time_division"):
             continue
         f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
-        if t0 < start_frame or t0 >= end_frame:
+        if t0 < start_frame or (end_time is not None and t0 >= end_frame):
             continue
         attr_map = h5f[key][:, start_frame:end_frame]
         A_time[t0 - start_frame] += np.abs(attr_map).sum(axis=0)
+    # Normalize each row so sum over t_in = 1
     A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
 
     plt.figure(figsize=(6, 4))
     plt.title(
-        f"Normalized from {start_time:.2f}s to {end_time:.2f}s: How output‐time t0 depends on input‐time t_in \n {input_basename}"
+        f"Normalized from {start_time:.2f}s to {end_time:.2f}s: \n How output‐time t0 depends on input‐time t_in \n {input_basename}"
     )
 
     plt.imshow(
@@ -159,10 +162,12 @@ def plot_input_time_influence(
     h5f.close()
 
 
-def plot_input_freq_influence(h5_filename, input_basename, F_bins):
+def plot_input_freq_influence(h5_filename, input_basename, F_bins, start_time=0, end_time=None):
     # A_freq[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input frequency influence from {h5_filename}...")
-    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence.png"
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence_{start_time:.2f}_{end_time:.2f}.png"
+    if start_time == 0 and end_time is None:
+        save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence.png"
     if os.path.exists(save_path):
         print(
             f"Input frequency influence plot already exists at {save_path}. Skipping."
@@ -174,6 +179,8 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
         if key.startswith("time_division"):
             continue
         f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
+        if t0 < start_time or (end_time is not None and t0 >= end_time):
+            continue
         attr_map = h5f[key][:]
         A_freq[f0] += np.abs(attr_map).sum(axis=1)
     # Normalize each row so sum over f_in = 1
@@ -181,7 +188,7 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
 
     plt.figure(figsize=(6, 4))
     plt.title(
-        f"Normalized: How output‐freq f0 depends on input‐freq f_in \n {input_basename}"
+        f"Normalized from {start_time:.2f}s to {end_time:.2f}s: \n How output‐freq f0 depends on input‐freq f_in \n {input_basename}"
     )
     plt.imshow(A_freq_norm, origin="lower", aspect="auto", cmap="plasma")
     plt.xlabel("input freq f_in")
@@ -220,7 +227,7 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins):
 
 
 def plot_input_low_freq_influence(
-    h5_filename, input_basename, F_bins, high_freq_cutoff=1000
+    h5_filename, input_basename, F_bins, high_freq_cutoff=1000, start_time=0, end_time=None
 ):
     """
     Compute and plot input frequency influence for a specific frequency window.
@@ -235,7 +242,9 @@ def plot_input_low_freq_influence(
     print(
         f"Plotting input frequency influence for low frequencies from {h5_filename}..."
     )
-    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_low_freq_influence_{high_freq_cutoff}.png"
+    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_low_freq_influence_{high_freq_cutoff}_{start_time:.2f}_{end_time:.2f}.png"
+    if start_time == 0 and end_time is None:
+        save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_low_freq_influence_{high_freq_cutoff}.png"
     if os.path.exists(save_path):
         print(
             f"Input frequency influence plot for window already exists at {save_path}. Skipping."
@@ -252,6 +261,8 @@ def plot_input_low_freq_influence(
         if key.startswith("time_division"):
             continue
         f0, t0 = map(int, [key.split("_")[0][1:], key.split("_")[1][1:]])
+        if t0 < start_time or (end_time is not None and t0 >= end_time):
+            continue
         attr_map = h5f[key][:]  # shape: [f_in, t_in]
         # Sum only within the frequency window
         A_freq_window[f0] += np.abs(attr_map[:end_bin]).sum(axis=1)
@@ -675,3 +686,16 @@ def create_colorbar(height, cmap="magma"):
     return np.array(colorbar_img)
 
 
+if __name__ == "__main__":
+    input_dir = "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/data/added_white_noise_input"
+    if os.path.isdir(input_dir):
+        wav_files = [
+            os.path.join(input_dir, f)
+            for f in os.listdir(input_dir)
+            if f.endswith(".wav")
+        ]
+    elif os.path.isfile(input_dir) and input_dir.endswith(".wav"):
+        wav_files = [input_dir]
+    for wav_file in wav_files:
+        input_basename = os.path.basename(wav_file).replace(".wav", "")
+        plot_stft_spectrogram(wav_file, input_basename)
