@@ -65,7 +65,7 @@ def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
         ],
     )
 
-    plt.colorbar(label="normalized attribution")
+    plt.colorbar(label="row‐normalized attribution (log scale)")
     plt.tight_layout()
 
     os.makedirs(
