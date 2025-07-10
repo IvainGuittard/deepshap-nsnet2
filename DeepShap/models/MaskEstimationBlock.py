@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-class MaskFromLogPower(nn.Module):
+class MaskEstimationBlock(nn.Module):
     """
     A small wrapper that reuses NsNet2’s internal layers but
     *skips* the torchaudio STFT and log‐power steps. Instead,

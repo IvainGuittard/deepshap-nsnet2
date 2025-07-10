@@ -11,7 +11,7 @@ from utils.data_utils import (
     detect_and_remove_incomplete_keys,
 )
 from tqdm import tqdm
-from models.MaskFromLogPower import MaskFromLogPower
+from DeepShap.models.MaskEstimationBlock import MaskEstimationBlock
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -29,7 +29,7 @@ args = parser.parse_args()
 model, device = load_nsnet2_model()
 
 # Wrap the log‐power → mask logic in Captum:
-wrapper = MaskFromLogPower(model).cuda().train()
+wrapper = MaskEstimationBlock(model).cuda().train()
 dl_shap = DeepLiftShap(wrapper)
 
 # Prepare one test log‐power spectrogram + a set of baselines
