@@ -101,15 +101,14 @@ def prepare_logpower_deepshap_input_and_baseline(model, input):
         baseline_logpower: Silent baseline tensor.
     """
     input_spec_complex = model.preproc(input)  # [1, 1, 257, T_frames], complex
-    input_logpower = torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(1)
-    # → input_logpower: [1, 257, T_frames]
+    input_logpower = torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(1) # [1, 257, T_frames]
 
     # Build a “silent‐baseline” :
     B_baseline = 20
     F_bins, T_frames = input_logpower.shape[1], input_logpower.shape[2]
     baseline_logpower = torch.log(
         torch.full((B_baseline, F_bins, T_frames), fill_value=model.eps, device="cuda")
-    )  # → shape [20, 257, T_frames]
+    )  # → [20, 257, T_frames]
 
     return input_logpower, baseline_logpower
 
@@ -129,7 +128,7 @@ def detect_and_remove_incomplete_keys(h5_filename):
     """
     try:
         print(f"Checking for corrupted keys in {h5_filename}...")
-        with h5py.File(h5_filename, "a") as h5f:  # Open in read/write mode
+        with h5py.File(h5_filename, "a") as h5f:
             keys_to_remove = []
             for key in h5f.keys():
                 try:

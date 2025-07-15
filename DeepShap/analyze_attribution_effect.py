@@ -52,8 +52,7 @@ def analyse_top_attribution_effect(input_path, top_percent=10.0, dB_amplificatio
 
     log_mask_diff = compare_masks_from_audios(
         original_audio=wav,
-        modified_audio=amplified_wav,
-        device=device,
+        modified_audio=amplified_wav
     )
 
     F_bins, T_frames = log_mask_diff.size()
@@ -195,7 +194,6 @@ def analyse_flop_attribution_effect(
     log_mask_diff = compare_masks_from_audios(
         original_audio=wav,
         modified_audio=amplified_wav,
-        device=device,
     )
 
     F_bins, T_frames = log_mask_diff.size()
