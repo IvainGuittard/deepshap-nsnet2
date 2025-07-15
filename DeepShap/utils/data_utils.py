@@ -1,6 +1,13 @@
 import os
 import sys
 
+from DeepShap.utils.audio_pertubations import (
+    add_reverb,
+    add_sinusoidal_noise,
+    add_white_noise,
+)
+from DeepShap.utils.common_utils import load_and_resample
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torchaudio
 import torch

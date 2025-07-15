@@ -1,10 +1,12 @@
 import os
 import sys
+import torch
+import torchaudio
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import torchaudio
-from config.parameters import sample_rate, n_fft
-from utils.data_utils import load_and_resample
+from DeepShap.config.parameters import sample_rate, n_fft
+from DeepShap.utils.common_utils import load_and_resample
+from DeepShap.utils.data_utils import sample_rate
 import numpy as np
 
 

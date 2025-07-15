@@ -1,20 +1,18 @@
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import h5py
-from config.parameters import sample_rate, hop_length, n_fft
-from utils.data_utils import load_and_resample
-from utils.model_utils import load_nsnet2_model
-import cv2
+from DeepShap.config.parameters import sample_rate, n_fft, hop_length
+from DeepShap.utils.common_utils import load_and_resample
+from DeepShap.utils.audio_features import compute_binary_speech_mask, compute_snr_map
+from DeepShap.utils.model_utils import load_nsnet2_model
 from tqdm import tqdm
-import matplotlib as mpl
-import io
-from PIL import Image
 from matplotlib.colors import LogNorm
+from matplotlib.patches import Patch
 
 
 def plot_global_influences_separately(h5_filename, input_basename, F_bins, T_frames):

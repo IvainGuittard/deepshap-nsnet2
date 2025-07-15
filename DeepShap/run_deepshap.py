@@ -3,7 +3,6 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import argparse
 from captum.attr import DeepLiftShap
 import matplotlib.pyplot as plt
 from DeepShap.utils.common_utils import load_and_resample

@@ -5,25 +5,21 @@
 import argparse
 import os
 import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from DeepShap.utils.common_utils import load_and_resample
 from utils.data_utils import (
     detect_and_remove_incomplete_keys,
-    load_and_resample,
-    prepare_logpower_deepshap_input_and_baseline,
     get_wav_files,
 )
 from utils.plot_utils import (
-    plot_global_influence,
+    plot_global_influences_separately,
     plot_input_freq_influence,
     plot_input_low_freq_influence,
     plot_input_time_influence,
     plot_input_time_correlation,
-    make_time_normalized_video_from_attributions,
-    make_video_from_attributions,
-    make_frame_grouped_video_from_attributions,
 )
 from utils.model_utils import load_nsnet2_model
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def plot_attributions(wav_file):

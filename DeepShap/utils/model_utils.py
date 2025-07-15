@@ -1,9 +1,16 @@
+from matplotlib.colors import LogNorm
 import torch
 import sys
 import os
-from models.NsNet2_model import NsNet2
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from DeepShap.models.MaskEstimationBlock import MaskEstimationBlock
+from DeepShap.models.NsNet2_model import NsNet2
+from DeepShap.utils.common_utils import load_and_resample
+import torchaudio
+from DeepShap.config.parameters import sample_rate, n_fft, hop_length
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 def load_nsnet2_model():
