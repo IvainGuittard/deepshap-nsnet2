@@ -413,21 +413,20 @@ def plot_stft_spectrogram(input_path, input_basename):
     input = input.to(device)
 
     input_spec_complex = model.preproc(input)
-    input_logpower = (
-        torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(0).squeeze(0)
-    )
-    F_bins, T_frames = input_logpower.shape[-2:]
+    input_power = (input_spec_complex.abs() ** 2).squeeze(0).squeeze(0)
+    input_db = 10 * torch.log10(input_power + model.eps)
+    F_bins, T_frames = input_db.shape[-2:]
 
     plt.figure(figsize=(6, 4))
-    plt.title(f"STFT Spectrogram of {input_basename} log-power")
+    plt.title(f"STFT Spectrogram of {input_basename}")
     plt.imshow(
-        input_logpower.cpu().numpy(),
+        input_db.cpu().numpy(),
         origin="lower",
         aspect="auto",
         cmap="magma",
         interpolation="none",
     )
-    plt.colorbar(label="Magnitude")
+    plt.colorbar(label="Log Power (dB)")
     plt.xlabel("Time (s)")
     plt.ylabel("Frequency (Hz)")
 
@@ -446,10 +445,118 @@ def plot_stft_spectrogram(input_path, input_basename):
         ],
     )
 
-    os.makedirs(f"DeepShap/attributions/spectrograms", exist_ok=True)
+    save_path = (
+        f"DeepShap/attributions/spectrograms/{input_basename}_stft_spectrogram.png"
+    )
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(
-        f"DeepShap/attributions/spectrograms/{input_basename}_stft_spectrogram.png",
+        save_path,
         bbox_inches="tight",
+    )
+    print(f"STFT spectrogram saved to {save_path}")
+    plt.close()
+
+
+def plot_snr_mask(clean_path, noisy_path):
+    snr_mask = compute_snr_map(clean_path, noisy_path, sample_rate)
+    noisy_name = os.path.basename(noisy_path).replace(".wav", "")
+
+    model, device = load_nsnet2_model()
+    input, _ = load_and_resample(clean_path, sample_rate)
+    input = input.to(device)
+
+    input_spec_complex = model.preproc(input)
+    input_logpower = (
+        torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(0).squeeze(0)
+    )
+    F_bins, T_frames = input_logpower.shape[-2:]
+
+    plt.figure(figsize=(6, 4))
+    plt.title(f"SNR Mask of {noisy_name}")
+    plt.imshow(
+        snr_mask,
+        origin="lower",
+        aspect="auto",
+        cmap="viridis",
+        interpolation="none",  # Logarithmic scale
+        vmin=-np.max(np.abs(snr_mask)),
+        vmax=np.max(np.abs(snr_mask)),
+    )
+    plt.colorbar(label="SNR Mask (log scale)")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Frequency (Hz)")
+
+    plt.xticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+    save_path = f"DeepShap/attributions/snr_masks/{noisy_name}_snr_mask.png"
+    plt.savefig(save_path, bbox_inches="tight")
+    print(f"SNR mask saved to {save_path}")
+    plt.close()
+
+
+def plot_binary_speech_mask(clean_path):
+    binary_mask = compute_binary_speech_mask(clean_path, sample_rate)
+    file_name = os.path.basename(clean_path).replace(".wav", "").replace("clean_", "")
+
+    model, device = load_nsnet2_model()
+    input, _ = load_and_resample(clean_path, sample_rate)
+    input = input.to(device)
+
+    input_spec_complex = model.preproc(input)
+    input_logpower = (
+        torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(0).squeeze(0)
+    )
+    F_bins, T_frames = input_logpower.shape[-2:]
+
+    plt.figure(figsize=(6, 4))
+    plt.title(f"SNR Mask of {file_name}")
+    plt.imshow(
+        binary_mask,
+        origin="lower",
+        aspect="auto",
+        cmap="gray",
+        interpolation="none",
+    )
+    legend_elements = [
+        Patch(facecolor="black", edgecolor="black", label="0: Noise Dominant"),
+        Patch(facecolor="white", edgecolor="black", label="1: Speech Dominant"),
+    ]
+    plt.legend(
+        handles=legend_elements,
+        loc="lower right",
+        frameon=True,
+    )
+    plt.xlabel("Time (s)")
+    plt.ylabel("Frequency (Hz)")
+
+    plt.xticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+    plt.savefig(
+        f"DeepShap/attributions/speech_binary_masks/{file_name}_binary_mask.png",
     )
     plt.close()
 
