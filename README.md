@@ -73,38 +73,159 @@ It provides clean and noisy parallel speech at 48kHz, based on the VCTK corpus w
 pip install -r requirements.txt
 ```
 
-## Running the main script
+## Compute DeepSHAP Attributions for Audio Files
 
-The script `DeepShap/main_deepshap.py` computes Shapley values for time-frequency bins of audio files using the NsNet2 model. Attributions are stored in HDF5 (`.h5`) format for each input file.
+The script `DeepShap/main_deepshap.py` computes Shapley value–based attributions for each time-frequency bin of input `.wav` audio files using the NSNet2 model. Attributions are stored as HDF5 (`.h5`) files in a structured output directory.
 
-To run the script:
+---
+
+### Run the Script
 
 ```bash
 python DeepShap/main_deepshap.py --input_dir <path_to_input_wav_directory> --noise_type not_added
 ```
 
+---
+
 ### Parameters
 
-- `--input_dir`: **(Required)** Directory containing input `.wav` audio files to process.
+- `--input_dir` *(required)*  
+  Path to the directory containing `.wav` files to process.
 
-- `--noise_type`: Type of noise to consider or add. Options:
-  - `not_added`: No noise is added (original input is used as-is).
-  - `impulsive`: Add impulsive noise to the input.
-  - `sinusoidal`: Add sinusoidal noise with customizable frequency ranges and amplitudes.
-  - `reverberation`: Simulate reverberation by convolving input with a room impulse response.
-  - `white`: Add white noise in specified time ranges and amplitudes.
+- `--noise_type` *(default: `not_added`)*  
+  Type of noise to apply to the input. Choices:
+  - `not_added`: Use clean inputs as-is (no noise added).
+  - `sinusoidal`: Inject sinusoidal noise. Requires `--freq_ranges` and `--rms_amplitudes`.
+  - `reverberation`: Simulate reverberation using room impulse responses. Can customize reverberation time with `--reverberances`.
+  - `white`: Add white noise within specific time ranges and amplitudes. Requires `--time_ranges` and `--rms_amplitudes`.
 
-- `--freq_ranges`: *(Optional)* List of frequency ranges for sinusoidal noise injection (e.g., `1000-2000`). Required if `--noise_type` is `sinusoidal`.
+- `--freq_ranges` *(required if `--noise_type` is `sinusoidal`)*  
+  One or more frequency ranges for sinusoidal noise, e.g.,  
+  `--freq_ranges 1000-2000 3000-4000`.
 
-- `--rms_amplitudes`: *(Optional)* List of RMS amplitudes (e.g., `0.01`) for the sinusoidal or white noise. Required if `--noise_type` is `sinusoidal` or `white`.
+- `--rms_amplitudes` *(required for `sinusoidal` and `white` noise)*  
+  One or more RMS amplitudes to control the energy of injected noise, e.g.,  
+  `--rms_amplitudes 0.01 0.05`.
 
-- `--time_ranges`: *(Optional)* List of time ranges (e.g., `0.0-1.0`) during which white noise should be added. Required if `--noise_type` is `white`.
+- `--time_ranges` *(required if `--noise_type` is `white`)*  
+  One or more time intervals (in seconds) where white noise should be injected, e.g.,  
+  `--time_ranges 0.0-1.0 2.0-3.0`.
 
-- `--reverberances`: *(Optional)* Reverberation time(s) used when `--noise_type` is `reverberation`. Default is `0.5`.
+- `--reverberances` *(optional, default: `0.5`)*  
+  Reverberation times (in seconds) to simulate if using `--noise_type reverberation`, e.g.,  
+  `--reverberances 0.3 0.8`.
 
-## Plotting the Results
+---
 
-Once the attribution maps have been computed using `main_deepshap.py`, you can generate various interpretability visualizations by running:
+### Output
+
+For each input file, an HDF5 file is saved containing DeepSHAP attributions:
+```
+DeepShap/attributions/raw/{input_basename}.h5
+```
+
+---
+
+## Visualisation of the Attributions
+
+The script `DeepShap/plot_all_attributions.py` generates a set of advanced visualizations from precomputed DeepSHAP attributions stored in `.h5` files. These visualizations help interpret how time-frequency input bins contribute to the output spectrogram produced by the NSNet2 model.
+
+---
+
+### Run the Script
+
+You can run the script on a directory or a single `.wav` file. It will automatically find the corresponding `.h5` attribution file in `DeepShap/attributions/tf_attributions_h5py/`.
 
 ```bash
-python DeepShap/plot_all_attributions.py --input_dir <path_to_input_wav_directory>
+python DeepShap/plot_all_attributions.py --input_dir <path_to_wav_or_folder>
+```
+
+Examples:
+```bash
+# Run on a directory of WAV files
+python DeepShap/plot_all_attributions.py --input_dir data/noisy_input_tests/
+
+# Run on a single WAV file
+python DeepShap/plot_all_attributions.py --input_dir data/noisy_input_tests/p226_016.wav
+```
+
+---
+
+### Output
+
+For each input file, the following visualizations are generated:
+
+- **A) Global Influence Maps**  
+  Influence of each input time-frequency bin aggregated across all outputs.
+
+- **B) Input-to-Frequency Influence Maps**  
+  How each input bin contributes to the output at each frequency (or below a low-frequency threshold).
+
+- **C) Input-to-Time Influence Maps**  
+  How each input bin contributes to the output at each time frame.
+
+- **D) Time-Time Correlation Maps**  
+  Correlation between input and output time frames, showing temporal dependencies.
+
+All plots are saved in:
+```
+DeepShap/attributions/plots/{input_basename}_*.png
+```
+
+---
+
+### Notes
+
+- The script will skip any `.wav` file if its corresponding `.h5` file is missing.
+- It automatically removes corrupted or incomplete `.h5` keys before plotting.
+
+
+## Analyzing the Effect of Attributions
+
+The script `DeepShap/analyze_attribution_effect.py` evaluates the *causal effect* of high and low DeepSHAP attributions by selectively amplifying corresponding time-frequency bins in the audio input. This allows a quantitative and qualitative analysis of the importance of different input regions for the NSNet2 model.
+
+---
+
+### Run the Script
+
+```bash
+python DeepShap/analyze_attribution_effect.py --input_dir <path_to_wav_files> --top_percent <float> --dB_amplification <float>
+```
+
+**Arguments:**
+- `--input_dir`: Folder containing `.wav` files.
+- `--top_percent`: Percentage of top (or flop) attribution bins to select (default: `10.0`).
+- `--dB_amplification`: Gain in dB applied to the selected bins (default: `6.0`).
+
+---
+
+### Output
+
+For each input `.wav` file, the script will:
+
+1. **Generate and save amplified audios**:
+   - Amplifies time-frequency bins with the **top X% attributions**
+   - Amplifies time-frequency bins with the **bottom X% attributions**
+   - Saved as:  
+     ```
+     data/noisy_input_tests/{file}_top_{X}_amplified_{Y}dB.wav  
+     data/noisy_input_tests/{file}_flop_{X}_amplified_{Y}dB.wav
+     ```
+
+2. **Plot the impact on the NSNet2 predicted masks**:
+   - Difference between the predicted mask on the original and amplified signals for both cases
+   - Saved in:  
+     ```
+     DeepShap/attributions/attribution_effects/{file}_top_{X}_{Y}dB_amplified_effect.png  
+     DeepShap/attributions/attribution_effects/{file}_flop_{X}_{Y}dB_amplified_effect.png
+     ```
+
+3. **Visualize the attribution masks used**:
+   - Binary mask showing which bins were amplified for both cases
+   - Saved in:  
+     ```
+     DeepShap/attributions/attribution_effects/{file}_top_{X}_mask.png  
+     DeepShap/attributions/attribution_effects/{file}_flop_{X}_mask.png
+     ```
+
+---
