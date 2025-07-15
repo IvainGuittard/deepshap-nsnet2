@@ -31,14 +31,12 @@ def plot_attributions(wav_file):
     model, device = load_nsnet2_model()
     # Wrap the log‐power → mask logic in Captum:
 
-    x_test, _ = load_and_resample(wav_file, target_sr=16000)
-    x_test = x_test.to(device)
+    wav, _ = load_and_resample(wav_file, target_sr=16000)
+    wav = wav.to(device)
     # x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
 
-    input_logpower, baseline_logpower = prepare_logpower_deepshap_input_and_baseline(
-        model, x_test
-    )
-    F_bins, T_frames = input_logpower.shape[-2:]
+    spec = model.preproc(wav)
+    F_bins, T_frames = spec.shape[-2:]
     input_basename = os.path.basename(wav_file).replace(".wav", "")
     h5_filename = (
         f"DeepShap/attributions/tf_attributions_h5py/{input_basename}_attributions.h5"
@@ -51,7 +49,7 @@ def plot_attributions(wav_file):
     detect_and_remove_incomplete_keys(h5_filename)
 
     # A) Collapse along (f0, f_in) to see “input‐bins’ global influence”
-    plot_global_influence(h5_filename, input_basename, F_bins, T_frames)
+    plot_global_influences_separately(h5_filename, input_basename, F_bins, T_frames)
 
     # B) Influence of input-time on each output-time
     plot_input_freq_influence(h5_filename, input_basename, F_bins)
@@ -64,27 +62,6 @@ def plot_attributions(wav_file):
 
     # D) Correlation between input-time and output-time
     plot_input_time_correlation(h5_filename, input_basename, T_frames)
-
-    # E) Make videos from attributions
-    make_time_normalized_video_from_attributions(
-        h5_filename,
-        input_basename,
-        F_bins,
-        T_frames,
-    )
-    make_video_from_attributions(
-        h5_filename,
-        input_basename,
-        F_bins,
-        T_frames,
-    )
-    make_frame_grouped_video_from_attributions(
-        h5_filename,
-        input_basename,
-        F_bins,
-        T_frames,
-        frame_grouping=10,
-    )
 
 
 def main():
