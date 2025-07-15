@@ -93,7 +93,7 @@ def prepare_logpower_deepshap_input_and_baseline(model, input):
         input_logpower: Log-power spectrogram tensor.
         baseline_logpower: Silent baseline tensor.
     """
-    input_spec_complex = model.preproc(input)  # [1, 1, 257, ~62], complex
+    input_spec_complex = model.preproc(input)  # [1, 1, 257, T_frames], complex
     input_logpower = torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(1)
     # → input_logpower: [1, 257, T_frames]
 
