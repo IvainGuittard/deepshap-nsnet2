@@ -16,7 +16,7 @@ from utils.data_utils import (
     prepare_deepshap_input,
     get_wav_files,
 )
-import subprocess
+from DeepShap.run_deepshap import run_deep_shap_on_file
 
 
 def process_file(
@@ -34,7 +34,7 @@ def process_file(
         f"\nPROCESSING {input_path} \nNoise type: {noise_type} \nFrequency range: {freq_range} \nRMS amplitude: {rms_amplitude}"
     )
 
-    deepshap_input, deepshap_input_path = prepare_deepshap_input(
+    _, deepshap_input_path = prepare_deepshap_input(
         input_path,
         file_basename,
         noise_type,
@@ -45,15 +45,7 @@ def process_file(
         time_range=time_range,
     )
 
-    subprocess.run(
-        [
-            "python",
-            "DeepShap/deepshap_tf.py",
-            "--input",
-            deepshap_input_path,
-        ],
-        check=True,
-    )
+    run_deep_shap_on_file(deepshap_input_path)
 
 
 def main():
