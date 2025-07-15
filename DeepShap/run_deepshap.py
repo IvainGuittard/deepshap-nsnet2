@@ -1,11 +1,14 @@
 import os
 import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import argparse
 from captum.attr import DeepLiftShap
 import matplotlib.pyplot as plt
-from utils.model_utils import load_nsnet2_model
-from utils.data_utils import (
-    load_and_resample,
+from DeepShap.utils.common_utils import load_and_resample
+from DeepShap.utils.model_utils import load_nsnet2_model
+from DeepShap.utils.data_utils import (
     prepare_logpower_deepshap_input_and_baseline,
     create_h5_file_and_keys,
     detect_and_remove_incomplete_keys,
