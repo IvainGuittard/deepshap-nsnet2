@@ -108,6 +108,7 @@ def generate_mask_from_audio(wav):
         mask (torch.Tensor): Shape [F, T], values in [0,1]
     """
     model, device = load_nsnet2_model()
+    wrapper = MaskEstimationBlock(model).to(device).train()
     wav = wav.to(device)
     stft = torchaudio.transforms.Spectrogram(n_fft=n_fft, power=None).to(device)
     spec = stft(wav).squeeze(0)  # [F, T]
