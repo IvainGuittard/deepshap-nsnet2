@@ -560,11 +560,14 @@ def plot_binary_speech_mask(clean_path):
 
 
 if __name__ == "__main__":
-    clean_path = "data/clean_input_tests_cut/clean_p227_357_cut_0_2.wav"
-    noisy_path = "data/added_white_noise_input/p227_357_cut_0_2_white_noise_0.0-0.8_amplitude_0.01.wav"
+    """
+    Script plotting snr mask, stft spectrogram, and binary speech mask.
+    """
+    clean_path = "data/clean_input_tests_cut/clean_p227_357_cut_0_2.wav" # path to clean audio file for SNR mask
+    noisy_path = "data/added_white_noise_input/p227_357_cut_0_2_white_noise_0.0-0.8_amplitude_0.01.wav" # path to noisy audio file for SNR mask
     plot_snr_mask(clean_path, noisy_path)
 
-    input_dir = "data/clean_input_tests"
+    input_dir = "data/clean_input_tests" # input directory or single wav file for spectrogram and binary mask plots
     if os.path.isdir(input_dir):
         wav_files = [
             os.path.join(input_dir, f)

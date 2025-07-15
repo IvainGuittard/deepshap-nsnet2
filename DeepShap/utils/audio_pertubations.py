@@ -115,12 +115,3 @@ def amplify_tf_bins(waveform, spec_mask, dB):
     istft = torchaudio.transforms.InverseSpectrogram(n_fft=n_fft)
     wav_amplified = istft(spec_amplified.unsqueeze(0)).squeeze(0).squeeze(0)
     return wav_amplified
-
-
-# if __name__ == "__main__":
-#     input_path = "data/noisy_input_tests/p226_016.wav"
-#     sample_rate = 16000
-#     waveform, _ = load_and_resample(input_path, sample_rate)
-#     spec_wav = torchaudio.transforms.Spectrogram(n_fft=n_fft, power=None)(waveform)
-#     amp = amplify_tf_bins(waveform, sample_rate, torch.ones(spec_wav.shape), 15.0)
-#     torchaudio.save("data/noisy_input_tests/p226_016_amplified.wav", amp.unsqueeze(0), sample_rate)

@@ -28,13 +28,10 @@ def load_nsnet2_model():
 
 def generate_and_plot_mask(wav_path):
     """
-    Compute NSNet2 mask from a waveform.
+    Compute and plot NSNet2 mask from a waveform.
 
     Args:
-        audio_path (str): Path to .wav file
-
-    Returns:
-        mask (torch.Tensor): Shape [1, 1, F, T], values in [0,1]
+        wav_path (str): Path to .wav file
     """
     model, device = load_nsnet2_model()
     wrapper = MaskEstimationBlock(model).to(device).train()
@@ -105,7 +102,7 @@ def generate_mask_from_audio(wav):
     Compute NSNet2 mask from a waveform.
 
     Args:
-        audio_path (str): Path to .wav file
+        wav (torch.Tensor): Waveform
 
     Returns:
         mask (torch.Tensor): Shape [F, T], values in [0,1]
@@ -119,16 +116,12 @@ def generate_mask_from_audio(wav):
         return wrapper(log_power).squeeze(0).squeeze(0)  # [F, T]
 
 
-def compare_masks_from_audios(original_audio, modified_audio, device):
+def compare_masks_from_audios(original_audio, modified_audio):
     """
     Compute and compare masks generated from clean and noisy audio files.
     Args:
         original_audio (str): Path to the clean audio file
         modified_audio (str): Path to the noisy audio file
-        model (nn.Module): MaskEstimationBlock model
-        sample_rate (int): Target sample rate
-        n_fft (int): FFT window size for STFT
-        device (str): 'cuda' or 'cpu'
 
     Returns:
         mask_clean (torch.Tensor): Mask from clean input, shape [1, 1, F, T]

@@ -6,7 +6,6 @@ import torchaudio
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from DeepShap.config.parameters import sample_rate, n_fft
 from DeepShap.utils.common_utils import load_and_resample
-from DeepShap.utils.data_utils import sample_rate
 import numpy as np
 
 

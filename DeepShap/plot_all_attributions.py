@@ -25,11 +25,8 @@ from utils.model_utils import load_nsnet2_model
 def plot_attributions(wav_file):
 
     model, device = load_nsnet2_model()
-    # Wrap the log‐power → mask logic in Captum:
-
     wav, _ = load_and_resample(wav_file, target_sr=16000)
     wav = wav.to(device)
-    # x_test = torch.randn((1, 16000), device="cuda")      # shape [1, waveform_len]
 
     spec = model.preproc(wav)
     F_bins, T_frames = spec.shape[-2:]
