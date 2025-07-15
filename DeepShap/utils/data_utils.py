@@ -1,18 +1,17 @@
 import os
 import sys
 
+from DeepShap.utils.audio_pertubations import (
+    add_reverb,
+    add_sinusoidal_noise,
+    add_white_noise,
+)
+from DeepShap.utils.common_utils import load_and_resample
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torchaudio
 import torch
 import h5py
-
-
-def load_and_resample(path, target_sr):
-    waveform, sr = torchaudio.load(path)
-    if sr != target_sr:
-        resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=target_sr)
-        waveform = resampler(waveform)
-    return waveform, target_sr
 
 
 def get_wav_files(args):
@@ -29,80 +28,6 @@ def get_wav_files(args):
             f"Invalid input: {args.input_dir}. Must be a WAV file or a directory."
         )
     return wav_files
-
-
-def add_sinusoidal_noise(
-    waveform, sample_rate, freq_range=(1000, 2000), total_rms_amplitude=0.01
-):
-    device = waveform.device
-    duration = waveform.shape[1] / sample_rate
-    time = torch.linspace(0, duration, waveform.shape[1], device=device).unsqueeze(0)
-    freqs = torch.linspace(freq_range[0], freq_range[1], steps=300, device=device)
-
-    noise_components = [
-        torch.sin(2 * torch.pi * f * time + 2 * torch.pi * torch.rand(1, device=device))
-        for f in freqs
-    ]
-
-    noise = sum(noise_components)
-
-    rms = torch.sqrt(torch.mean(noise**2))
-    noise = noise * (total_rms_amplitude / rms)
-
-    return waveform + noise
-
-
-def add_white_noise(waveform, sample_rate, time_range=(0, 1), amplitude=0.01):
-    """
-    Adds white noise to a waveform within a specified time range.
-
-    Args:
-        waveform (Tensor): Input waveform tensor of shape [1, num_samples].
-        sample_rate (int): Sampling rate of the audio.
-        time_range (tuple): Start and end times in seconds for adding noise.
-        amplitude (float): Amplitude of the white noise.
-
-    Returns:
-        Tensor: Waveform with added white noise.
-    """
-    device = waveform.device
-    num_samples = waveform.shape[1]
-
-    start_idx = int(time_range[0] * sample_rate)
-    end_idx = int(time_range[1] * sample_rate)
-    start_idx = max(0, start_idx)
-    end_idx = min(num_samples, end_idx)
-
-    # Generate white noise
-    noise = torch.rand(1, end_idx - start_idx, device=device) * 2 - 1
-    noise *= amplitude
-
-    waveform[:, start_idx:end_idx] += noise
-
-    return waveform
-
-
-def add_reverb(waveform, sample_rate, reverberance=50.0, damping=50.0, room_scale=50.0):
-    """
-    Adds reverberation to the waveform using SoX effects.
-
-    Args:
-        waveform (Tensor): Input waveform tensor of shape [1, num_samples].
-        sample_rate (int): Sampling rate of the audio.
-        reverberance (float): Amount of reverb (0-100), higher means more echo.
-        damping (float): High-frequency damping (0-100).
-        room_scale (float): Size of the virtual room (0-100).
-
-    Returns:
-        Tensor: Reverberated waveform.
-    """
-    effects = [
-        ["reverb", str(reverberance), str(damping), str(room_scale)],
-    ]
-    waveform_reverb, _ = torchaudio.sox_effects.apply_effects_tensor(
-        waveform, sample_rate, effects
-    )
-    return waveform_reverb
 
 
 def prepare_deepshap_input(
@@ -175,7 +100,7 @@ def prepare_logpower_deepshap_input_and_baseline(model, input):
         input_logpower: Log-power spectrogram tensor.
         baseline_logpower: Silent baseline tensor.
     """
-    input_spec_complex = model.preproc(input)  # [1, 1, 257, ~62], complex
+    input_spec_complex = model.preproc(input)  # [1, 1, 257, T_frames], complex
     input_logpower = torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(1)
     # → input_logpower: [1, 257, T_frames]
 

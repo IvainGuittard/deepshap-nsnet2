@@ -1,85 +1,88 @@
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import h5py
-from config.parameters import sample_rate, hop_length, n_fft
-from utils.data_utils import load_and_resample
-from utils.model_utils import load_nsnet2_model
-import cv2
+from DeepShap.config.parameters import sample_rate, n_fft, hop_length
+from DeepShap.utils.common_utils import load_and_resample
+from DeepShap.utils.audio_features import compute_binary_speech_mask, compute_snr_map
+from DeepShap.utils.model_utils import load_nsnet2_model
 from tqdm import tqdm
-import matplotlib as mpl
-import io
-from PIL import Image
 from matplotlib.colors import LogNorm
+from matplotlib.patches import Patch
 
 
-def plot_global_influence(h5_filename, input_basename, F_bins, T_frames):
-    # A_in2mask[f_in, t_in] = Σ_{f0, t0} |all_attr[f0, t0, f_in, t_in]|
-    print(f"Plotting global influence from {h5_filename}...")
-    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_global_influence.png"
-    if os.path.exists(save_path):
-        print(f"Global influence plot already exists at {save_path}. Skipping.")
-        return
+def plot_global_influences_separately(h5_filename, input_basename, F_bins, T_frames):
+    print(
+        f"Plotting global, positive, and negative influence maps from {h5_filename}..."
+    )
+
+    # Load attribution tensor and collapse across output
     h5f = h5py.File(h5_filename, "r")
-    A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
+    A_total = np.zeros((F_bins, T_frames), dtype=np.float32)
     for key in h5f:
         if key.startswith("time_division"):
             continue
-        attr_map = h5f[key][:]
-        A_in2mask += np.abs(attr_map)
-    # Min–max normalize entire map so it’s in [0,1]
-    A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (
-        A_in2mask.max() - A_in2mask.min() + 1e-12
-    )
-
-    plt.figure(figsize=(6, 4))
-    plt.title(
-        f"Global influence of each input TF‐bin on the entire mask (min–max norm) \n {input_basename}"
-    )
-    plt.imshow(
-        A_in2mask_norm,
-        origin="lower",
-        aspect="auto",
-        cmap="viridis",
-        norm=LogNorm(vmin=1e-4, vmax=A_in2mask_norm.max()),  # Logarithmic scale
-    )
-    plt.xlabel("input time t_in")
-    plt.ylabel("input freq f_in")
-
-    plt.xticks(
-        np.arange(0, T_frames, T_frames // 5),
-        [
-            f"{(t * hop_length) / sample_rate:.2f} s"
-            for t in range(0, T_frames, T_frames // 5)
-        ],
-    )
-    plt.yticks(
-        np.arange(0, F_bins, F_bins // 10),
-        [
-            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
-            for f in range(0, F_bins, F_bins // 10)
-        ],
-    )
-
-    plt.colorbar(label="row‐normalized attribution (log scale)")
-    plt.tight_layout()
-
-    os.makedirs(
-        os.path.dirname(save_path),
-        exist_ok=True,
-    )
-    plt.savefig(
-        save_path,
-        bbox_inches="tight",
-    )
-    plt.show()
-    plt.close()
-    print("Global influence plot saved.")
+        A_total += h5f[key][:]
     h5f.close()
+
+    # Prepare all three maps
+    A_abs = np.abs(A_total)
+    A_pos = np.clip(A_total, 0, None)
+    A_neg = -np.clip(A_total, None, 0)
+
+    maps = {
+        "global_influence": (
+            A_abs,
+            f"Log-scaled normalized absolute attributions (log₁₀(|attr|))",
+            "viridis",
+        ),
+        "global_positive_influence": (
+            A_pos,
+            f"Log-scaled normalized positive attributions (log₁₀(attr))",
+            "viridis",
+        ),
+        "global_negative_influence": (
+            A_neg,
+            f"Log-scaled normalized negative attributions (log₁₀(–attr))",
+            "cividis",
+        ),
+    }
+
+    time_ticks = np.arange(0, T_frames, T_frames // 5)
+    time_labels = [f"{(t * hop_length) / sample_rate:.2f} s" for t in time_ticks]
+    freq_ticks = np.arange(0, F_bins, F_bins // 10)
+    freq_labels = [f"{f * sample_rate / (2 * F_bins):.0f} Hz" for f in freq_ticks]
+    global_max = A_abs.max()
+
+    for name, (A_map, title, cmap) in maps.items():
+        A_norm = A_map / (global_max + 1e-12)
+
+        plt.figure(figsize=(6, 4))
+        plt.title(f"{title}\n{input_basename}")
+        im = plt.imshow(
+            A_norm,
+            origin="lower",
+            aspect="auto",
+            cmap=cmap,
+            norm=LogNorm(vmin=1e-2, vmax=1e0),  # Logarithmic scale
+        )
+        plt.xlabel("input time t_in")
+        plt.ylabel("input freq f_in")
+        plt.xticks(time_ticks, time_labels)
+        plt.yticks(freq_ticks, freq_labels)
+        plt.colorbar(im, label="normalized attribution (log scale)")
+        plt.tight_layout()
+
+        save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_{name}.png"
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.show()
+        plt.close()
+        print(f"{title} plot saved to {save_path}")
 
 
 def plot_input_time_influence(
@@ -87,12 +90,13 @@ def plot_input_time_influence(
 ):
     # A_time[t0, t_in] = Σ_{f0, f_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input time influence from {h5_filename}...")
-    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence_{start_time:.2f}_{end_time:.2f}.png"
     if start_time == 0 and end_time is None:
         save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence.png"
-    if os.path.exists(save_path):
-        print(f"Input time influence plot already exists at {save_path}. Skipping.")
-        return
+    else:
+        save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_time_influence_{start_time:.2f}_{end_time:.2f}.png"
+    # if os.path.exists(save_path):
+    #     print(f"Input time influence plot already exists at {save_path}. Skipping.")
+    #     return
 
     if end_time is None or end_time > T_frames * hop_length / sample_rate:
         end_frame = T_frames
@@ -115,9 +119,14 @@ def plot_input_time_influence(
     A_time_norm = A_time / (A_time.sum(axis=1, keepdims=True) + 1e-12)
 
     plt.figure(figsize=(6, 4))
-    plt.title(
-        f"Normalized from {start_time:.2f}s to {end_time:.2f}s: \n How output‐time t0 depends on input‐time t_in \n {input_basename}"
-    )
+    if end_time is None:
+        plt.title(
+            f"Normalized from {start_time:.2f}s to end: \n How output‐time t0 depends on input‐time t_in \n {input_basename}"
+        )
+    else:
+        plt.title(
+            f"Normalized from {start_time:.2f}s to {end_time:.2f}s: \n How output‐time t0 depends on input‐time t_in \n {input_basename}"
+        )
 
     plt.imshow(
         A_time_norm,
@@ -158,16 +167,19 @@ def plot_input_time_influence(
     )
     plt.show()
     plt.close()
-    print("Input time influence plot saved.")
+    print(f"Input time influence plot saved to {save_path}.")
     h5f.close()
 
 
-def plot_input_freq_influence(h5_filename, input_basename, F_bins, start_time=0, end_time=None):
+def plot_input_freq_influence(
+    h5_filename, input_basename, F_bins, start_time=0, end_time=None
+):
     # A_freq[f0, f_in] = Σ_{t0, t_in} |all_attr[f0, t0, f_in, t_in]|
     print(f"Plotting input frequency influence from {h5_filename}...")
-    save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence_{start_time:.2f}_{end_time:.2f}.png"
     if start_time == 0 and end_time is None:
         save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence.png"
+    else:
+        save_path = f"DeepShap/attributions/tf_attributions_collapsed/{input_basename}/{input_basename}_freq_influence_{start_time:.2f}_{end_time:.2f}.png"
     if os.path.exists(save_path):
         print(
             f"Input frequency influence plot already exists at {save_path}. Skipping."
@@ -187,9 +199,14 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins, start_time=0,
     A_freq_norm = A_freq / (A_freq.sum(axis=1, keepdims=True) + 1e-12)
 
     plt.figure(figsize=(6, 4))
-    plt.title(
-        f"Normalized from {start_time:.2f}s to {end_time:.2f}s: \n How output‐freq f0 depends on input‐freq f_in \n {input_basename}"
-    )
+    if end_time is None:
+        plt.title(
+            f"Normalized from {start_time:.2f}s to end: \n How output‐freq f0 depends on input‐freq f_in \n {input_basename}"
+        )
+    else:
+        plt.title(
+            f"Normalized from {start_time:.2f}s to {end_time:.2f}s: \n How output‐freq f0 depends on input‐freq f_in \n {input_basename}"
+        )
     plt.imshow(A_freq_norm, origin="lower", aspect="auto", cmap="plasma")
     plt.xlabel("input freq f_in")
     plt.ylabel("output freq f0")
@@ -222,12 +239,17 @@ def plot_input_freq_influence(h5_filename, input_basename, F_bins, start_time=0,
     )
     plt.show()
     plt.close()
-    print("Input frequency influence plot saved.")
+    print(f"Input frequency influence plot saved to {save_path}.")
     h5f.close()
 
 
 def plot_input_low_freq_influence(
-    h5_filename, input_basename, F_bins, high_freq_cutoff=1000, start_time=0, end_time=None
+    h5_filename,
+    input_basename,
+    F_bins,
+    high_freq_cutoff=1000,
+    start_time=0,
+    end_time=None,
 ):
     """
     Compute and plot input frequency influence for a specific frequency window.
@@ -325,15 +347,18 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
         print(f"Input time correlation plot already exists at {save_path}. Skipping.")
         return
     h5f = h5py.File(h5_filename, "r")
-    keys = tqdm(h5f.keys(), desc="Processing keys")
-    time_vectors = np.zeros((T_frames, len(keys)), dtype=np.float32)
-    for idx, key in enumerate(keys):
-        keys.set_description(f"Processing key: {key}")
-        if key.startswith("time_division"):
-            continue
-        attr = np.abs(h5f[key][:])  # shape: [f_in, t_in]
-        attr_summed = attr.sum(axis=0)  # sum over f_in → [t_in]
-        time_vectors[:, idx] = attr_summed
+    all_keys = [k for k in h5f.keys() if not k.startswith("time_division")]
+
+    time_vectors = np.zeros((T_frames, T_frames), dtype=np.float32)
+
+    for i, t0_val in enumerate(tqdm(range(T_frames), desc="Processing t0 values")):
+        keys_for_t0 = [k for k in all_keys if int(k.split("_")[1][1:]) == t0_val]
+        attr_sum_for_t0 = np.zeros(T_frames, dtype=np.float32)
+        for k in keys_for_t0:
+            attr = np.abs(h5f[k][:])  # shape [f_in, t_in]
+            attr_summed = attr.sum(axis=0)  # sum over f_in → [t_in]
+            attr_sum_for_t0 += attr_summed
+        time_vectors[:, i] = attr_sum_for_t0
 
     corr_matrix = np.corrcoef(time_vectors)
     corr_matrix = np.nan_to_num(corr_matrix)
@@ -372,7 +397,7 @@ def plot_input_time_correlation(h5_filename, input_basename, T_frames):
         bbox_inches="tight",
     )
     plt.close()
-    print("Input time correlation plot saved.")
+    print("Input time correlation plot saved to {save_path}.")
     h5f.close()
     return corr_matrix
 
@@ -386,21 +411,20 @@ def plot_stft_spectrogram(input_path, input_basename):
     input = input.to(device)
 
     input_spec_complex = model.preproc(input)
-    input_logpower = (
-        torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(0).squeeze(0)
-    )
-    F_bins, T_frames = input_logpower.shape[-2:]
+    input_power = (input_spec_complex.abs() ** 2).squeeze(0).squeeze(0)
+    input_db = 10 * torch.log10(input_power + model.eps)
+    F_bins, T_frames = input_db.shape[-2:]
 
     plt.figure(figsize=(6, 4))
-    plt.title(f"STFT Spectrogram of {input_basename} log-power")
+    plt.title(f"STFT Spectrogram of {input_basename}")
     plt.imshow(
-        input_logpower.cpu().numpy(),
+        input_db.cpu().numpy(),
         origin="lower",
         aspect="auto",
         cmap="magma",
         interpolation="none",
     )
-    plt.colorbar(label="Magnitude")
+    plt.colorbar(label="Log Power (dB)")
     plt.xlabel("Time (s)")
     plt.ylabel("Frequency (Hz)")
 
@@ -419,211 +443,128 @@ def plot_stft_spectrogram(input_path, input_basename):
         ],
     )
 
-    os.makedirs(f"DeepShap/attributions/spectrograms", exist_ok=True)
+    save_path = (
+        f"DeepShap/attributions/spectrograms/{input_basename}_stft_spectrogram.png"
+    )
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(
-        f"DeepShap/attributions/spectrograms/{input_basename}_stft_spectrogram.png",
+        save_path,
         bbox_inches="tight",
+    )
+    print(f"STFT spectrogram saved to {save_path}")
+    plt.close()
+
+
+def plot_snr_mask(clean_path, noisy_path):
+    snr_mask = compute_snr_map(clean_path, noisy_path, sample_rate)
+    noisy_name = os.path.basename(noisy_path).replace(".wav", "")
+
+    model, device = load_nsnet2_model()
+    input, _ = load_and_resample(clean_path, sample_rate)
+    input = input.to(device)
+
+    input_spec_complex = model.preproc(input)
+    input_logpower = (
+        torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(0).squeeze(0)
+    )
+    F_bins, T_frames = input_logpower.shape[-2:]
+
+    plt.figure(figsize=(6, 4))
+    plt.title(f"SNR Mask of {noisy_name}")
+    plt.imshow(
+        snr_mask,
+        origin="lower",
+        aspect="auto",
+        cmap="viridis",
+        interpolation="none",  # Logarithmic scale
+        vmin=-np.max(np.abs(snr_mask)),
+        vmax=np.max(np.abs(snr_mask)),
+    )
+    plt.colorbar(label="SNR Mask (log scale)")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Frequency (Hz)")
+
+    plt.xticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+    save_path = f"DeepShap/attributions/snr_masks/{noisy_name}_snr_mask.png"
+    plt.savefig(save_path, bbox_inches="tight")
+    print(f"SNR mask saved to {save_path}")
+    plt.close()
+
+
+def plot_binary_speech_mask(clean_path):
+    binary_mask = compute_binary_speech_mask(clean_path, sample_rate)
+    file_name = os.path.basename(clean_path).replace(".wav", "").replace("clean_", "")
+
+    model, device = load_nsnet2_model()
+    input, _ = load_and_resample(clean_path, sample_rate)
+    input = input.to(device)
+
+    input_spec_complex = model.preproc(input)
+    input_logpower = (
+        torch.log(input_spec_complex.abs() ** 2 + model.eps).squeeze(0).squeeze(0)
+    )
+    F_bins, T_frames = input_logpower.shape[-2:]
+
+    plt.figure(figsize=(6, 4))
+    plt.title(f"SNR Mask of {file_name}")
+    plt.imshow(
+        binary_mask,
+        origin="lower",
+        aspect="auto",
+        cmap="gray",
+        interpolation="none",
+    )
+    legend_elements = [
+        Patch(facecolor="black", edgecolor="black", label="0: Noise Dominant"),
+        Patch(facecolor="white", edgecolor="black", label="1: Speech Dominant"),
+    ]
+    plt.legend(
+        handles=legend_elements,
+        loc="lower right",
+        frameon=True,
+    )
+    plt.xlabel("Time (s)")
+    plt.ylabel("Frequency (Hz)")
+
+    plt.xticks(
+        np.arange(0, T_frames, T_frames // 5),
+        [
+            f"{(t * hop_length) / sample_rate:.2f} s"
+            for t in range(0, T_frames, T_frames // 5)
+        ],
+    )
+    plt.yticks(
+        np.arange(0, F_bins, F_bins // 10),
+        [
+            f"{f * sample_rate / (2 * F_bins):.0f} Hz"
+            for f in range(0, F_bins, F_bins // 10)
+        ],
+    )
+    plt.savefig(
+        f"DeepShap/attributions/speech_binary_masks/{file_name}_binary_mask.png",
     )
     plt.close()
 
 
-def make_time_normalized_video_from_attributions(
-    h5_filename, input_basename, F_bins, T_frames, fps=5
-):
-    """
-    Create a video from per-frame attributions using OpenCV.
-    Each frame shows the influence of all input TF-bins on one output (f0, t0) bin.
-    """
-    print(f"Generating attribution video from {h5_filename}...")
-    h5f = h5py.File(h5_filename, "r")
-
-    frame_width, frame_height = T_frames, F_bins
-    video_path = f"DeepShap/attributions/videos/{input_basename}_time_normalized.mp4"
-    os.makedirs(os.path.dirname(video_path), exist_ok=True)
-    color_bar = create_colorbar(frame_height, cmap="magma")
-    color_bar_width = color_bar.shape[1]
-    out = cv2.VideoWriter(
-        video_path,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (frame_width + color_bar_width, frame_height),
-    )
-
-    frame_keys = sorted(
-        [k for k in h5f if not k.startswith("time_division")],
-        key=lambda x: int(x.split("_")[1][1:]),  # Sort by t0
-    )
-    A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
-
-    last_frame_t0 = 0
-    for idx, key in enumerate(tqdm(frame_keys, desc="Processing frames")):
-        current_t0 = int(key.split("_")[1][1:])
-        attr_map = h5f[key][:]  # shape: [f_in, t_in]
-        A_in2mask += np.abs(attr_map)
-        if current_t0 != last_frame_t0:
-            # If we have a new t0, normalize and save the frame
-            A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (
-                A_in2mask.max() - A_in2mask.min() + 1e-12
-            )
-            A_in2mask_norm = np.nan_to_num(A_in2mask_norm, nan=1)
-
-            time_coefficient_matrix = np.ones((F_bins, T_frames), dtype=np.float32)
-            for t in range(current_t0 + 1):
-                time_coefficient_matrix[:, t] = current_t0 - t + 1
-            A_in2mask_uint8 = np.uint8(
-                255 * A_in2mask_norm / (time_coefficient_matrix + 1e-12)
-            )
-            frame_rgb = cv2.applyColorMap(A_in2mask_uint8, cv2.COLORMAP_MAGMA)
-            frame_rgb = cv2.resize(
-                frame_rgb, (frame_width, frame_height), interpolation=cv2.INTER_NEAREST
-            )
-            frame_rgb = np.hstack((frame_rgb, color_bar))
-            out.write(frame_rgb)
-            last_frame_t0 = current_t0
-
-    out.release()
-    h5f.close()
-    print(f"Attribution video saved to {video_path}")
-
-
-def make_video_from_attributions(h5_filename, input_basename, F_bins, T_frames, fps=5):
-    """
-    Create a video from per-frame attributions using OpenCV.
-    Each frame shows the influence of all input TF-bins on one output (f0, t0) bin.
-    """
-    print(f"Generating attribution video from {h5_filename}...")
-    h5f = h5py.File(h5_filename, "r")
-
-    frame_width, frame_height = T_frames, F_bins
-    video_path = f"DeepShap/attributions/videos/{input_basename}_frame_by_frame.mp4"
-    os.makedirs(os.path.dirname(video_path), exist_ok=True)
-    color_bar = create_colorbar(frame_height, cmap="magma")
-    color_bar_width = color_bar.shape[1]
-    out = cv2.VideoWriter(
-        video_path,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (frame_width + color_bar_width, frame_height),
-    )
-
-    frame_keys = sorted(
-        [k for k in h5f if not k.startswith("time_division")],
-        key=lambda x: int(x.split("_")[1][1:]),  # Sort by t0
-    )
-    A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
-
-    last_frame_t0 = 0
-    for idx, key in enumerate(tqdm(frame_keys, desc="Processing frames")):
-        current_t0 = int(key.split("_")[1][1:])
-        attr_map = h5f[key][:]  # shape: [f_in, t_in]
-        A_in2mask += np.abs(attr_map)
-        if current_t0 != last_frame_t0:
-            # If we have a new t0, normalize and save the frame
-            A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (
-                A_in2mask.max() - A_in2mask.min() + 1e-12
-            )
-            A_in2mask_norm = np.nan_to_num(A_in2mask_norm, nan=1)
-
-            time_coefficient_matrix = np.ones((F_bins, T_frames), dtype=np.float32)
-            for t in range(current_t0 + 1):
-                time_coefficient_matrix[:, t] = current_t0 - t + 1
-            A_in2mask_uint8 = np.uint8(
-                255 * A_in2mask_norm / (time_coefficient_matrix + 1e-12)
-            )
-            frame_rgb = cv2.applyColorMap(A_in2mask_uint8, cv2.COLORMAP_MAGMA)
-            frame_rgb = cv2.resize(
-                frame_rgb, (frame_width, frame_height), interpolation=cv2.INTER_NEAREST
-            )
-            frame_rgb = np.hstack((frame_rgb, color_bar))
-            out.write(frame_rgb)
-            last_frame_t0 = current_t0
-
-            A_in2mask.fill(0)  # Reset for the next t0
-
-    out.release()
-    h5f.close()
-    print(f"Attribution video saved to {video_path}")
-
-
-def make_frame_grouped_video_from_attributions(
-    h5_filename, input_basename, F_bins, T_frames, fps=5, frame_grouping=10
-):
-    """
-    Create a video from per-frame attributions using OpenCV.
-    Each frame shows the influence of all input TF-bins on one output (f0, t0) bin.
-    """
-    print(f"Generating attribution video from {h5_filename}...")
-    h5f = h5py.File(h5_filename, "r")
-
-    frame_width, frame_height = T_frames, F_bins
-    video_path = f"DeepShap/attributions/videos/{input_basename}_frame_grouped_by_{frame_grouping}.mp4"
-    os.makedirs(os.path.dirname(video_path), exist_ok=True)
-    color_bar = create_colorbar(frame_height, cmap="magma")
-    color_bar_width = color_bar.shape[1]
-    out = cv2.VideoWriter(
-        video_path,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (frame_width + color_bar_width, frame_height),
-    )
-
-    frame_keys = sorted(
-        [k for k in h5f if not k.startswith("time_division")],
-        key=lambda x: int(x.split("_")[1][1:]),  # Sort by t0
-    )
-    A_in2mask = np.zeros((F_bins, T_frames), dtype=np.float32)
-
-    last_frame_t0 = 0
-    for idx, key in enumerate(tqdm(frame_keys, desc="Processing frames")):
-        current_t0 = int(key.split("_")[1][1:])
-        attr_map = h5f[key][:]  # shape: [f_in, t_in]
-        A_in2mask += np.abs(attr_map)
-        if current_t0 == last_frame_t0 + frame_grouping:
-            # If we have a new t0, normalize and save the frame
-            A_in2mask_norm = (A_in2mask - A_in2mask.min()) / (
-                A_in2mask.max() - A_in2mask.min() + 1e-12
-            )
-            A_in2mask_norm = np.nan_to_num(A_in2mask_norm, nan=1)
-
-            time_coefficient_matrix = np.ones((F_bins, T_frames), dtype=np.float32)
-            for t in range(current_t0 + 1):
-                time_coefficient_matrix[:, t] = current_t0 - t + 1
-            A_in2mask_uint8 = np.uint8(
-                255 * A_in2mask_norm / (time_coefficient_matrix + 1e-12)
-            )
-            frame_rgb = cv2.applyColorMap(A_in2mask_uint8, cv2.COLORMAP_MAGMA)
-            frame_rgb = cv2.resize(
-                frame_rgb, (frame_width, frame_height), interpolation=cv2.INTER_NEAREST
-            )
-            frame_rgb = np.hstack((frame_rgb, color_bar))
-            out.write(frame_rgb)
-            last_frame_t0 = current_t0
-
-            A_in2mask.fill(0)  # Reset for the next t0
-
-    out.release()
-    h5f.close()
-    print(f"Attribution video saved to {video_path}")
-
-
-def create_colorbar(height, cmap="magma"):
-    fig, ax = plt.subplots(figsize=(0.5, 3), dpi=100)
-    fig.subplots_adjust(left=0.5, right=0.6, top=1, bottom=0)
-
-    norm = mpl.colors.Normalize(vmin=0, vmax=1)
-    cb = mpl.colorbar.ColorbarBase(ax, cmap=cmap, norm=norm, orientation="vertical")
-    cb.set_label("Attribution")
-
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0)
-    plt.close(fig)
-    buf.seek(0)
-    colorbar_img = Image.open(buf).convert("RGB").resize((40, height))
-    return np.array(colorbar_img)
-
-
 if __name__ == "__main__":
-    input_dir = "/home/azureuser/cloudfiles/code/Users/iguittard/XAI-Internship/data/added_white_noise_input"
+    clean_path = "data/clean_input_tests_cut/clean_p227_357_cut_0_2.wav"
+    noisy_path = "data/added_white_noise_input/p227_357_cut_0_2_white_noise_0.0-0.8_amplitude_0.01.wav"
+    plot_snr_mask(clean_path, noisy_path)
+
+    input_dir = "data/clean_input_tests"
     if os.path.isdir(input_dir):
         wav_files = [
             os.path.join(input_dir, f)
@@ -635,3 +576,4 @@ if __name__ == "__main__":
     for wav_file in wav_files:
         input_basename = os.path.basename(wav_file).replace(".wav", "")
         plot_stft_spectrogram(wav_file, input_basename)
+        plot_binary_speech_mask(wav_file)
